@@ -523,6 +523,24 @@ def test_uploading_with_a_wrong_key_is_refused() -> None:
     assert response.status_code == 401
 
 
+def test_repeated_wrong_upload_keys_are_rate_limited() -> None:
+    client = keyed_client()
+    files = {"file": ("clip.mp4", io.BytesIO(b"bytes"), "video/mp4")}
+
+    for _ in range(5):
+        resp = client.post(
+            "/api/v1/uploads", files=files, headers={"X-Upload-Key": "wrong"}
+        )
+        assert resp.status_code == 401
+
+    # Blocking case: subsequent request is blocked with 429
+    blocked = client.post(
+        "/api/v1/uploads", files=files, headers={"X-Upload-Key": "wrong"}
+    )
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == "too_many_failed_attempts"
+
+
 def test_uploading_with_the_key_works() -> None:
     files = {"file": ("clip.mp4", io.BytesIO(b"bytes"), "video/mp4")}
     response = keyed_client().post(
