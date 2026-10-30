@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from httpx import Response
 
 from maqati3.api.app import create_app
+from maqati3.api.rate_limit import UploadKeyRateLimiter
 from maqati3.api.repository import (
     Attribution,
     EntryLanguageRow,
@@ -492,7 +493,10 @@ def test_a_file_without_readable_audio_is_refused_and_removed() -> None:
 # --------------------------------------------------------------- the link is the key
 
 
-def keyed_client(key: str = "s3cret") -> TestClient:
+def keyed_client(
+    key: str = "s3cret",
+    rate_limiter: UploadKeyRateLimiter | None = None,
+) -> TestClient:
     app = create_app(
         FakeRepository([]),  # type: ignore[arg-type]
         store=FakeStore(),
@@ -501,6 +505,7 @@ def keyed_client(key: str = "s3cret") -> TestClient:
         hashes=FakeHashes(),
         submissions=FakeSubmissions(),
         upload_key=key,
+        upload_key_rate_limiter=rate_limiter or UploadKeyRateLimiter(),
     )
     return TestClient(app)
 
@@ -539,6 +544,46 @@ def test_repeated_wrong_upload_keys_are_rate_limited() -> None:
     )
     assert blocked.status_code == 429
     assert blocked.json()["detail"] == "too_many_failed_attempts"
+
+
+def test_configurable_upload_key_rate_limit_blocks_earlier() -> None:
+    limiter = UploadKeyRateLimiter(max_failures=2)
+    client = keyed_client(rate_limiter=limiter)
+    files = {"file": ("clip.mp4", io.BytesIO(b"bytes"), "video/mp4")}
+
+    for _ in range(2):
+        resp = client.post(
+            "/api/v1/uploads", files=files, headers={"X-Upload-Key": "bad"}
+        )
+        assert resp.status_code == 401
+
+    blocked = client.post(
+        "/api/v1/uploads", files=files, headers={"X-Upload-Key": "bad"}
+    )
+    assert blocked.status_code == 429
+
+
+def test_valid_upload_key_resets_rate_limit_failure_count() -> None:
+    limiter = UploadKeyRateLimiter(max_failures=3)
+    client = keyed_client(rate_limiter=limiter)
+    files = {"file": ("clip.mp4", io.BytesIO(b"bytes"), "video/mp4")}
+
+    # 2 failures (below threshold of 3)
+    for _ in range(2):
+        assert client.post(
+            "/api/v1/uploads", files=files, headers={"X-Upload-Key": "bad"}
+        ).status_code == 401
+
+    # 1 success with correct key resets the failure counter
+    assert client.post(
+        "/api/v1/uploads", files=files, headers={"X-Upload-Key": "s3cret"}
+    ).status_code == 200
+
+    # Next 2 failures should not trigger block because count was reset
+    for _ in range(2):
+        assert client.post(
+            "/api/v1/uploads", files=files, headers={"X-Upload-Key": "bad"}
+        ).status_code == 401
 
 
 def test_uploading_with_the_key_works() -> None:

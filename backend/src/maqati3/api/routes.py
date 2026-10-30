@@ -7,9 +7,10 @@ import hmac
 import mimetypes
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 
+from maqati3.api.rate_limit import UploadKeyRateLimiter
 from maqati3.api.repository import (
     EntryRow,
     LibraryRepository,
@@ -119,7 +120,24 @@ def get_upload_key() -> str | None:
     return None
 
 
+_DEFAULT_RATE_LIMITER = UploadKeyRateLimiter()
+
+
+def get_upload_key_rate_limiter() -> UploadKeyRateLimiter:
+    return _DEFAULT_RATE_LIMITER
+
+
 UPLOAD_KEY_REQUIRED = "upload_key_required"
+TOO_MANY_FAILED_ATTEMPTS = "too_many_failed_attempts"
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "127.0.0.1"
 
 
 def _check_key(expected: str | None, given: str | None) -> None:
@@ -129,23 +147,51 @@ def _check_key(expected: str | None, given: str | None) -> None:
         raise HTTPException(status_code=401, detail=UPLOAD_KEY_REQUIRED)
 
 
+def _check_key_with_rate_limit(
+    expected: str | None,
+    given: str | None,
+    request: Request,
+    limiter: UploadKeyRateLimiter,
+) -> None:
+    if expected is None:
+        return
+    ip = _client_ip(request)
+    if limiter.is_blocked(ip):
+        raise HTTPException(status_code=429, detail=TOO_MANY_FAILED_ATTEMPTS)
+    try:
+        _check_key(expected, given)
+    except HTTPException:
+        limiter.record_failure(ip)
+        raise
+    limiter.record_success(ip)
+
+
 def require_upload_key(
+    request: Request,
     expected: Annotated[str | None, Depends(get_upload_key)],
+    limiter: Annotated[UploadKeyRateLimiter, Depends(get_upload_key_rate_limiter)],
     x_upload_key: Annotated[str | None, Header()] = None,
 ) -> None:
     """The unlisted link hides the page, not the API behind it. Its key is the credential:
     without it anyone who found the endpoint could fill the disk."""
-    _check_key(expected, x_upload_key)
+    _check_key_with_rate_limit(expected, x_upload_key, request, limiter)
 
 
 def require_upload_key_or_query(
+    request: Request,
     expected: Annotated[str | None, Depends(get_upload_key)],
+    limiter: Annotated[UploadKeyRateLimiter, Depends(get_upload_key_rate_limiter)],
     x_upload_key: Annotated[str | None, Header()] = None,
     k: Annotated[str | None, Query()] = None,
 ) -> None:
     """Same key, also accepted as ?k= -- only for media, because a <video src> cannot
     send a header."""
-    _check_key(expected, x_upload_key if x_upload_key is not None else k)
+    _check_key_with_rate_limit(
+        expected,
+        x_upload_key if x_upload_key is not None else k,
+        request,
+        limiter,
+    )
 
 
 Keyed = Depends(require_upload_key)

@@ -19,6 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from maqati3.api.admin import AdminConfig
 from maqati3.api.app import create_app
+from maqati3.api.rate_limit import UploadKeyRateLimiter
 from maqati3.auth.google import GoogleIdentityProvider
 from maqati3.db.admin import PgAdmins, PgDesk
 from maqati3.db.library import PgLibraryRepository
@@ -81,6 +82,10 @@ class Settings(BaseSettings):
     #: Signs the session cookie. Long and random -- `python -c "import secrets;
     #: print(secrets.token_urlsafe(48))"`. Changing it signs every admin out.
     session_secret: str = ""
+    #: Upload key brute-force rate limiting:
+    upload_key_rate_limit_max_failures: int = 5
+    upload_key_rate_limit_window_s: float = 60.0
+    upload_key_rate_limit_block_s: float = 300.0
 
 
 def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | None:
@@ -151,6 +156,11 @@ def build_app(settings: Settings, *, connect_kwargs: Mapping[str, Any] | None = 
     executor = PooledExecutor(pool)
     store = LocalUploadStore(settings.staging_dir, max_bytes=settings.max_upload_bytes)
     submissions = PgSubmissions(executor)
+    upload_key_rate_limiter = UploadKeyRateLimiter(
+        max_failures=settings.upload_key_rate_limit_max_failures,
+        window_s=settings.upload_key_rate_limit_window_s,
+        block_s=settings.upload_key_rate_limit_block_s,
+    )
     app = create_app(
         PgLibraryRepository(executor),
         store=store,
@@ -160,6 +170,7 @@ def build_app(settings: Settings, *, connect_kwargs: Mapping[str, Any] | None = 
         submissions=submissions,
         lifespan=lifespan,
         upload_key=settings.upload_key,
+        upload_key_rate_limiter=upload_key_rate_limiter,
         admin=admin_config(settings, executor),
     )
     app.state.store = store
