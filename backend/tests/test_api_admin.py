@@ -60,6 +60,7 @@ class FakeAdmins:
     def __init__(self, *emails: str) -> None:
         self.admins = {e: AdminUser(e, e.split("@")[0].title()) for e in emails}
         self.logged: list[tuple[str, str, str | None, dict[str, Any]]] = []
+        self.records: list[LogRecord] = []
 
     def find(self, email: str) -> AdminUser | None:
         return self.admins.get(email.strip().lower())
@@ -79,7 +80,7 @@ class FakeAdmins:
         self.logged.append((admin_email, action, subject, detail))
 
     def recent_log(self, *, limit: int) -> list[LogRecord]:
-        return []
+        return self.records[:limit]
 
 
 WAITING = DashboardItem(
@@ -406,6 +407,7 @@ def test_a_tampered_session_cookie_is_not_a_session() -> None:
         ("get", "/api/v1/admin/me"),
         ("get", "/api/v1/admin/submissions"),
         ("get", "/api/v1/admin/submissions/aaa/media"),
+        ("get", "/api/v1/admin/log"),
         ("post", "/api/v1/admin/submissions/aaa/register"),
         ("post", "/api/v1/admin/submissions/aaa/discard"),
         ("post", "/api/v1/admin/scholars"),
@@ -439,6 +441,7 @@ def test_a_session_secret_that_is_too_short_cannot_even_be_configured() -> None:
         ("get", "/api/v1/admin/me"),
         ("get", "/api/v1/admin/submissions"),
         ("get", "/api/v1/admin/submissions/aaa/media"),
+        ("get", "/api/v1/admin/log"),
         ("post", "/api/v1/admin/submissions/aaa/register"),
         ("post", "/api/v1/admin/submissions/aaa/discard"),
         ("post", "/api/v1/admin/scholars"),
@@ -451,6 +454,26 @@ def test_nobody_signed_in_reaches_an_admin_route(method: str, path: str) -> None
 
     assert response.status_code == 401
     assert response.json()["detail"] == "admin_login_required"
+
+
+def test_admin_can_read_recent_log_entries() -> None:
+    setup = Setup("yusuf@example.org")
+    login(setup, "yusuf@example.org")
+    setup.admins.records = [
+        LogRecord(
+            at=NOW,
+            admin_email="yusuf@example.org",
+            action="login",
+            subject=None,
+            detail={},
+        )
+    ]
+    response = setup.client.get("/api/v1/admin/log")
+    assert response.status_code == 200
+    entries = response.json()
+    assert len(entries) == 1
+    assert entries[0]["admin_email"] == "yusuf@example.org"
+    assert entries[0]["action"] == "login"
 
 
 def test_the_upload_key_is_not_an_admin_credential() -> None:
