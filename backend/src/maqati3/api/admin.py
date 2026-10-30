@@ -21,7 +21,7 @@ import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -32,6 +32,7 @@ from maqati3.api.desk import (
     AdminUser,
     DashboardItem,
     Desk,
+    LogRecord,
     NotWaiting,
     ScholarExists,
     UnknownScholar,
@@ -209,6 +210,24 @@ class StatusOut(BaseModel):
     status: str
 
 
+class LogRecordOut(BaseModel):
+    at: datetime
+    admin_email: str
+    action: str
+    subject: str | None
+    detail: dict[str, Any]
+
+    @classmethod
+    def of(cls, record: LogRecord) -> LogRecordOut:
+        return cls(
+            at=record.at,
+            admin_email=record.admin_email,
+            action=record.action,
+            subject=record.subject,
+            detail=record.detail,
+        )
+
+
 # ------------------------------------------------------------------ signing in
 
 
@@ -331,6 +350,16 @@ def add_scholar(body: ScholarIn, config: Config, admin: Admin) -> ScholarOut:
     except ScholarExists as exc:
         raise HTTPException(status_code=409, detail=SCHOLAR_EXISTS) from exc
     return ScholarOut(id=body.id, name_ar=body.name_ar, name_en=body.name_en)
+
+
+@router.get("/log")
+def log_entries(
+    config: Config,
+    admin: Admin,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> list[LogRecordOut]:
+    """Latest actions on the admin dashboard."""
+    return [LogRecordOut.of(record) for record in config.admins.recent_log(limit=limit)]
 
 
 __all__ = ["AdminConfig", "router", "safe_return"]
