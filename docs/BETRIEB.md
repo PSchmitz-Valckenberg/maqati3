@@ -58,6 +58,8 @@ eingespielt; er bleibt dort ohnehin zu, bis Domain und Google-Zugang eingerichte
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | für den Admin-Bereich | Der OAuth-Client von Google, siehe unten |
 | `PUBLIC_URL` | für den Admin-Bereich | Die Adresse der Seite, `https://<domain>`, ohne Pfad |
 | `SESSION_SECRET` | für den Admin-Bereich | Signiert das Login-Cookie, mind. 32 Zeichen. `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Ändern = alle Admins abgemeldet. |
+| `SONIOX_API_KEY` | für die Transkription | Der Schlüssel des Anbieters. Leer: der Knopf im Dashboard antwortet 503 und der `worker`-Container startet nicht. |
+| `SONIOX_MODEL` | nein | Standard `stt-async-v5`. |
 
 Die vier Admin-Werte gehören zusammen: **alle oder keine**. Keine → der Admin-Bereich ist
 geschlossen (jede Adresse antwortet 503). Nur ein Teil → der Server startet nicht, mit
@@ -132,6 +134,39 @@ alles später neu gemacht werden.
 
 Wer nicht auf der Liste steht, kommt nicht hinein, auch mit gültigem Google-Konto; wer
 entfernt wird, ist ab der nächsten Anfrage draußen.
+
+### Transkription auf Knopfdruck
+
+Bei einem registrierten Eintrag steht im Dashboard **Transkribieren**. Der Knopf stellt
+nur einen Auftrag in die Warteschlange (`job`-Tabelle); gearbeitet wird im zweiten
+Container, `worker`:
+
+```bash
+cd /opt/maqati3/deploy
+docker compose logs -f worker
+```
+
+Was dabei gilt — die Gründe stehen in `CLAUDE.md`, „The Admin Workflow“:
+
+* **Ein Lauf je Eintrag.** Solange einer läuft oder wartet, antwortet ein zweiter Klick
+  409. ASR wird pro Audiostunde bezahlt, und zwei Läufe wären zwei Schreiber auf einer
+  Zeitleiste.
+* **Nie überschreiben.** Gibt es schon Zeilen oder arbeitet jemand am Arabischen, wird
+  gar nicht erst angefragt. Kommt ein Ergebnis zu spät, wird es weggeworfen.
+* **Der Entwurf ist nicht zitierbar.** Jede Zeile entsteht mit `span_role = unclear` und
+  `citable = false`; Herkunft `asr`. Erst ein Mensch macht daraus Zitierbares.
+* **Nichts bleibt beim Anbieter.** Datei und Transkription werden nach jedem Lauf dort
+  wieder gelöscht.
+* **Ohne Schlüssel ist zu.** Kein `SONIOX_API_KEY` → kein Knopf, kein Worker.
+
+Ein Lauf ohne erkannte Wörter gilt als endgültig gescheitert und wird **nicht** vier
+weitere Male bezahlt; der Grund steht in `job.last_error`, und man kann danach erneut
+anfragen.
+
+**Noch nie gegen den echten Dienst gelaufen** (wir haben keinen Schlüssel): Die
+Aufrufformen stammen aus der Dokumentation von Soniox und sind gegen einen gefälschten
+Transport getestet. Der erste echte Lauf gehört auf echtes Material, bevor irgendetwas
+davon geglaubt wird.
 
 ### Ohne Dashboard: die Inbox auf dem Server
 

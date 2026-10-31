@@ -38,6 +38,8 @@ Tested with these exact files (`deploy/`): on 2026-10-25 locally (Arm, Chrome te
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | for admin dashboard | Google OAuth client, see below |
 | `PUBLIC_URL` | for admin dashboard | The site's own address, `https://<domain>`, without path |
 | `SESSION_SECRET` | for admin dashboard | Signs the login cookie, min. 32 chars: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Changing it signs all admins out. |
+| `SONIOX_API_KEY` | for transcription | The provider's key. Empty: the dashboard's button answers 503 and the `worker` container does not start. |
+| `SONIOX_MODEL` | no | Defaults to `stt-async-v5`. |
 
 The four admin variables belong together: **all or none**. None → the admin dashboard is closed (every endpoint returns 503). Partial configuration → the server refuses to start, reporting which value is missing.
 
@@ -95,6 +97,35 @@ Google binds the redirect URL strictly; setting it with a temporary DuckDNS addr
    ```
 
 Anyone not present on the admin list is rejected, even with a valid Google account; anyone removed is denied access starting with the next request.
+
+### Transcription on Demand
+
+A registered entry carries a **Transcribe** button in the dashboard. The button only
+queues a job (the `job` table); the work happens in the second container, `worker`:
+
+```bash
+cd /opt/maqati3/deploy
+docker compose logs -f worker
+```
+
+The rules, with their reasons in `CLAUDE.md`, "The Admin Workflow":
+
+* **One run per entry.** While one is queued or running, a second click answers 409.
+  ASR is billed per audio hour, and two runs would be two writers on one timeline.
+* **Never overwrite.** If lines already exist, or someone is working on the Arabic,
+  nothing is even queued. A result that arrives too late is thrown away.
+* **The draft is not quotable.** Every line is written with `span_role = unclear` and
+  `citable = false`, provenance `asr`. Only a person makes it citable.
+* **Nothing of ours stays with the provider.** The file and the transcription are
+  deleted there after every run.
+* **No key, no button.** Without `SONIOX_API_KEY` there is neither button nor worker.
+
+A run that found no words at all is terminal and is **not** paid for four more times;
+the reason is in `job.last_error`, and the entry can be asked for again afterwards.
+
+**Never run against the real service** (we have no key): the call shapes come from
+Soniox's documentation and are tested against a fake transport. The first real run
+belongs on real material, before any of it is trusted.
 
 ### Without Dashboard: The Server Inbox
 

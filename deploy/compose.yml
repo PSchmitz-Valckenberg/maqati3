@@ -37,8 +37,30 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       PUBLIC_URL: ${PUBLIC_URL:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
+      # Speech to text. Empty closes the transcription button (503) and leaves the
+      # worker below refusing to start, which is the state until a key exists.
+      SONIOX_API_KEY: ${SONIOX_API_KEY:-}
     volumes:
       # The only copy of every upload until an admin registers it. Back this up.
+      - staging:/var/lib/maqati3
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The second process of the same codebase: it takes transcription jobs off the queue.
+  # It reads the staged uploads, so it shares the volume; it serves nothing, so Caddy
+  # never reaches it. Without SONIOX_API_KEY it exits at once and keeps restarting --
+  # visible in `docker compose ps`, and nothing is lost while it is down: the jobs wait.
+  worker:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "maqati3", "worker"]
+    environment:
+      DATABASE_URL: postgresql://maqati3:${POSTGRES_PASSWORD}@db:5432/maqati3
+      SONIOX_API_KEY: ${SONIOX_API_KEY:-}
+    volumes:
       - staging:/var/lib/maqati3
     depends_on:
       db:

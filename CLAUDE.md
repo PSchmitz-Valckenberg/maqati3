@@ -27,8 +27,11 @@ an admin. **The admin dashboard is built** (`/{locale}/admin`): Google sign-in w
 allowlist, a list of every kept upload with a player, *register* (choose the scholar → a draft
 entry, `not_sure`) and *discard*, every action logged. Tested locally in Chrome against a real
 database with a stand-in for Google; **not on the server yet**, and closed until a domain and a
-Google OAuth client exist (`docs/BETRIEB.md`, "Der Admin-Bereich"). Not built yet: transcription
-and draft translation on demand, and the review editor with the per-language claim.
+Google OAuth client exist (`docs/BETRIEB.md`, "Der Admin-Bereich"). **Transcription on demand
+is built** (2026-10-31): a *Transcribe* button on a registered entry queues one job, a second
+process (`python -m maqati3 worker`, its own container in `deploy/compose.yml`) runs it through
+Soniox and stores the draft. Not built yet: draft translation on demand, and the review editor
+with the per-language claim.
 
 **Wrong upload keys are rate-limited** (2026-10-31, `backend/src/maqati3/api/ratelimit.py`):
 30 wrong keys per client in 10 minutes, then 429. Only wrong keys count; a missing or a
@@ -226,6 +229,18 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    translations. They can also discard it. If the scholar cannot be told, the video stays
    in the dashboard as "scholar unclear". The gate is about **review time, not cost**
    (ASR is ~0.002 $ for an 80 s clip), which is what "deep before broad" means in practice.
+
+   *Transcription, built 2026-10-31:* the button queues a job; `maqati3.worker` claims it,
+   sends the staged file to Soniox, groups the word tokens into one row per moment
+   (`asr/lines.py`) and stores them. Four rules hold it together, each with a test for the
+   blocked case: **one run per entry** (a second click is 409 — ASR is billed per audio hour
+   and two runs are two writers on one timeline); **never overwrite** (lines already there, or
+   an Arabic past `not_started`, refuse the request, and a result that arrives too late is
+   dropped); **the draft is not quotable** (`span_role = unclear`, `citable = false`,
+   provenance `asr`); and **fail closed** (no `SONIOX_API_KEY` → 503 and no worker). A run that
+   found no words is terminal rather than retried four more times. Nothing has yet run against
+   the real service: the call shapes come from Soniox's documentation and are tested against a
+   fake transport, so the first real run belongs on real material before it is trusted.
 4. **Review happens in the dashboard**, in a table editor: one row per moment, audio synced
    to the row, edit the text, mark a language checked. No Google Docs, no Drive API.
 5. **Per language, with a claim.** The unit of work is one language of one entry. Whoever

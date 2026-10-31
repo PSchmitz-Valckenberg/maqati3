@@ -100,9 +100,11 @@ flowchart LR
 3. **Admins decide.** Kept uploads wait in a dashboard. An admin watches each one and,
    if it is worth the review time, registers it under a scholar. This creates a draft
    entry whose attribution starts at *not sure*.
-4. **Transcribe, translate, review** *(being built)*. The admin triggers the
-   transcription and the draft translations. Reviewers then correct them in a table with
-   one row per moment, the audio synced to the row, and one language at a time.
+4. **Transcribe, translate, review**. The admin presses *Transcribe*: a worker sends
+   the recording to the speech-to-text service and stores one row per moment, as a
+   draft that is explicitly not quotable until a person has been through it. Draft
+   translations and the review table — one row per moment, the audio synced to the row,
+   one language at a time — are *being built*.
 5. **Publish** *(Phase 1)*. Approved entries appear in the public library, with deep
    links that land on the exact second.
 
@@ -133,7 +135,8 @@ Pre-alpha. Nothing is public yet; the upload runs on a provisional server.
 |---|---|---|
 | ✅ | Bulk upload with live duplicate check | built and running |
 | ✅ | Admin dashboard: sign in, play, register, discard | built; goes live with the final domain |
-| 🔨 | Transcription and draft translations on demand | [next](https://github.com/PSchmitz-Valckenberg/maqati3/milestones) |
+| ✅ | Transcription on demand (Soniox) | built; waiting for an API key |
+| 🔨 | Draft translations on demand | [next](https://github.com/PSchmitz-Valckenberg/maqati3/milestones) |
 | 🔨 | Review editor with a per-language claim and approval | [next](https://github.com/PSchmitz-Valckenberg/maqati3/milestones) |
 | 🗓️ | **Phase 1:** the public library: topics, scholars, synced transcript, deep links. No AI. | planned |
 | 🗓️ | **Phase 2:** search, an MCP server, and only then an answer tool | planned |
