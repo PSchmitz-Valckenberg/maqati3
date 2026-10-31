@@ -60,7 +60,7 @@ describe('upload key transport security', () => {
     const sha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
     try {
-      await sendDecision(sha256, { choice: 'new', sender: 'Tester' }, secretKey);
+      await sendDecision(sha256, { keep: true, contributor: 'Tester' }, secretKey);
       expect(capturedUrl).toBe(`/api/v1/uploads/${sha256}/decision`);
       expect(capturedUrl).not.toContain(secretKey);
       expect((capturedInit?.headers as Record<string, string>)['X-Upload-Key']).toBe(secretKey);
