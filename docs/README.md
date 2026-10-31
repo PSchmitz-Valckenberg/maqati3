@@ -1,21 +1,24 @@
-Documentation
+# Documentation
 
-Welcome to the maqati3 documentation.
+Technical documents for maqati3: the architecture, the processing pipeline and how the
+server is run. Most of them are written in German; English translations are being added
+next to them as `*.en.md`.
 
-This directory contains technical documentation explaining the architecture, processing pipeline, and operation of maqati3.
+| Document | What it covers | Language |
+|---|---|---|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System architecture and the decisions behind it, including what was rejected | German |
+| [`PIPELINE.md`](PIPELINE.md) | How a recording is processed, and the deduplication layers | [German](PIPELINE.md), [English](PIPELINE.en.md) |
+| [`BETRIEB.md`](BETRIEB.md) | Running the server and the admin dashboard | [German](BETRIEB.md), [English](BETRIEB.en.md) |
+| [`COSTS.md`](COSTS.md) | What processing and running it costs | [German](COSTS.md), [English](COSTS.en.md) |
+| [`RISKS.md`](RISKS.md) | What could realistically end the project | [German](RISKS.md), [English](RISKS.en.md) |
+| [`SETUP-GOOGLE.md`](SETUP-GOOGLE.md) | Setting up the Google sign-in (partly superseded, see the note at the top) | English |
+| [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Common problems when running it locally | English |
 
-Documentation index
-Document	Description
-Architecture	System architecture and technical decisions
-Pipeline	Recording processing and duplicate detection
-Operations	Server deployment and administration
-For contributors
+## New to the project?
 
-If you're new to the project:
+1. Read the [main README](../README.md).
+2. Read [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+3. Skim [`ARCHITECTURE.md`](ARCHITECTURE.md).
+4. Look at the [open issues](https://github.com/PSchmitz-Valckenberg/maqati3/issues).
 
-Read the main README.
-Read CONTRIBUTING.md.
-Explore the architecture documentation.
-Check the open issues.
-
-If you find an error or missing information, contributions to the documentation are welcome.
+If you find a mistake or something missing in the documentation, a pull request is welcome.

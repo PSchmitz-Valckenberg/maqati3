@@ -1,194 +1,160 @@
-Troubleshooting
+# Troubleshooting
 
-This guide covers common problems you may encounter when setting up and running maqati3 locally.
+This guide covers common problems you may run into when setting up and running maqati3
+locally. If yours is not covered here, check the other documents in [`docs/`](README.md)
+or open an issue on GitHub.
 
-If your problem isn't covered here, please check the project documentation or open an issue on GitHub.
+## Docker and the database
 
-1. Docker and database problems
-Database container fails to start
+### The database container fails to start
 
-Make sure Docker is installed and running.
+Make sure Docker is installed and running, then check the container status and its logs:
 
-Check the container status:
-
-bash
+```bash
 docker compose ps
-
-
-Check the database logs:
-
-bash
 docker compose logs db
+```
 
+If the container exits unexpectedly, read the logs for the underlying error before
+restarting it.
 
-If the database container exits unexpectedly, inspect the logs for the underlying error before restarting it.
+### Port 5432 is already in use
 
-Port 5432 is already in use
+Another PostgreSQL instance may already be using the default port. Start the database on a
+different one with the `DB_PORT` variable:
 
-The default PostgreSQL port may already be occupied by another database instance.
-
-You can configure a different port using the DB_PORT environment variable.
-
-For example:
-
-bash
+```bash
 DB_PORT=55432 docker compose up -d --wait db
+```
 
+and use the same port in `DATABASE_URL`:
 
-Make sure your DATABASE_URL uses the same port:
-
-bash
+```bash
 export DATABASE_URL=postgresql://maqati3:devonly@127.0.0.1:55432/maqati3
+```
 
-2. Backend problems
-Database connection fails
+## Backend
 
-Check the following:
-
-The database container is running.
-The PostgreSQL port is correct.
-The database name and credentials match your local configuration.
-The DATABASE_URL environment variable is set.
-
-You can inspect the database logs with:
-
-bash
-docker compose logs db
-
-Database migration fails
-
-Make sure the database is running and that DATABASE_URL points to the correct database.
-
-Run the migration command from the backend directory:
-
-bash
-uv run python -m maqati3 migrate
-
-
-If the migration still fails, inspect the error message before attempting to modify the database manually.
-
-Python dependencies fail to install
-
-Make sure you have installed uv and are using Python 3.13.
-
-From the backend directory, run:
-
-bash
-uv sync
-
-
-If installation fails, check the error output and verify your Python and uv versions.
-
-3. Media processing problems
-ffmpeg or fpcalc cannot be found
-
-maqati3 requires ffmpeg and fpcalc for its media-processing features.
-
-On Ubuntu or Debian, install them with:
-
-bash
-sudo apt update
-sudo apt install ffmpeg libchromaprint-tools
-
-
-On macOS:
-
-bash
-brew install chromaprint ffmpeg
-
-
-Verify that both commands are available:
-
-bash
-ffmpeg -version
-fpcalc -version
-
-
-If either command is unavailable, check that the installation directory is included in your system's PATH.
-
-4. Frontend problems
-Frontend dependencies fail to install
-
-Make sure Node.js 22 is installed.
-
-Navigate to the frontend directory:
-
-bash
-cd frontend
-npm ci
-
-
-If installation fails, check the npm error output and verify your Node.js version.
-
-Frontend cannot communicate with the backend
+### The database connection fails
 
 Check that:
 
-The backend server is running.
-The frontend development server is running.
-The backend is listening on the expected port.
-The local proxy configuration is correct.
+- the database container is running;
+- the port is the right one;
+- the database name and credentials match your local configuration;
+- `DATABASE_URL` is set.
 
-Start the backend using the documented development command:
+The database logs help here too: `docker compose logs db`.
 
-bash
+### The migration fails
+
+Make sure the database is running and `DATABASE_URL` points to it, then run, from the
+`backend` directory:
+
+```bash
+uv run python -m maqati3 migrate
+```
+
+If it still fails, read the error message before changing anything in the database by hand.
+
+### Python dependencies fail to install
+
+Make sure [uv](https://docs.astral.sh/uv/) is installed and you are on Python 3.13. From the
+`backend` directory:
+
+```bash
+uv sync
+```
+
+If it fails, check the error output and your Python and uv versions.
+
+## Media processing
+
+### `ffmpeg` or `fpcalc` cannot be found
+
+The media features need both. Install them with:
+
+```bash
+sudo apt update && sudo apt install ffmpeg libchromaprint-tools   # Debian, Ubuntu
+brew install chromaprint ffmpeg                                   # macOS
+```
+
+and check that both are available:
+
+```bash
+ffmpeg -version
+fpcalc -version
+```
+
+If one is not found, make sure the directory it was installed to is on your `PATH`.
+
+## Frontend
+
+### The dependencies fail to install
+
+Make sure Node.js 22 is installed, then, from the `frontend` directory:
+
+```bash
+npm ci
+```
+
+If it fails, check the npm error output and your Node.js version.
+
+### The frontend cannot reach the backend
+
+Check that:
+
+- the backend is running and listening on the expected port;
+- the frontend development server is running;
+- the proxy points at the backend (`API_ORIGIN`, see [`frontend/README.md`](../frontend/README.md)).
+
+Start the backend with the documented development command:
+
+```bash
 UPLOAD_KEY=dev STAGING_DIR=.staging uv run python -m maqati3 serve --port 8000
+```
 
+and the frontend in a second terminal:
 
-Then start the frontend in a separate terminal:
-
-bash
+```bash
 cd frontend
 npm run dev
+```
 
-5. Running tests
-Backend tests are skipped
+## Tests
 
-Some backend database and end-to-end tests require:
+### Backend tests are skipped
 
-A running PostgreSQL database.
-A valid DATABASE_URL.
-ffmpeg.
-fpcalc.
+The database and end-to-end tests need a running PostgreSQL, a valid `DATABASE_URL`, and
+`ffmpeg` and `fpcalc` on the `PATH`. Without them those tests are skipped. CI runs all of them.
 
-Without these dependencies, some tests are skipped.
-
-Run backend tests using:
-
-bash
+```bash
 cd backend
 uv run pytest
+```
 
-Frontend tests fail
+### Frontend checks fail
 
-Run the frontend checks individually:
+Run them one by one and read the output of the one that fails:
 
-bash
+```bash
 cd frontend
 npm test
 npm run lint
 npx tsc --noEmit
+```
 
+## Still stuck?
 
-Check the output of each command to identify the failure.
+Read the [README](../README.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md), and search the
+[existing issues](https://github.com/PSchmitz-Valckenberg/maqati3/issues). If your problem
+has not been reported, open a new issue and include:
 
-6. Still having problems?
+- your operating system;
+- your Python and Node.js versions;
+- the command you ran;
+- the complete error message;
+- the steps to reproduce it.
 
-If you cannot resolve your issue:
-
-Read the main README.
-Check the CONTRIBUTING guide.
-Search existing GitHub issues.
-If the problem hasn't been reported, open a new issue.
-
-When reporting a problem, include:
-
-Your operating system.
-Your Python and Node.js versions.
-The command you executed.
-The complete error message.
-Steps to reproduce the problem.
-
-Please remove passwords, API keys, database credentials, and other sensitive information before sharing logs.
-
-Thank you for helping improve maqati3!
+Remove passwords, API keys, database credentials and other secrets from logs before you
+share them.
