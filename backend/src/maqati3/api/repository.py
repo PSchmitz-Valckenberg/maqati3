@@ -8,6 +8,11 @@ The rows mirror `db/migrations/0001_init.sql`. They carry `visibility` and
 `attribution` even though the Postgres implementation is expected to return public
 rows only -- the route layer re-checks the publication gate, because a filter that
 exists in exactly one place is a filter that gets forgotten once.
+
+The topic lock is the exception to that doubling, and deliberately so. `excluded`
+means the material is not on the public site at all, so an implementation never hands
+out such a row and the routes have nothing to re-check: there is no field on these
+rows a route could gate on, and adding one would mean putting the lock in a reply.
 """
 
 from __future__ import annotations
@@ -97,15 +102,29 @@ class LibraryRepository(Protocol):
     """Read-only operations behind the public library routes."""
 
     def entry(self, entry_id: str) -> EntryRow | None:
-        """One entry by id, or None. May return non-public rows; the route gates."""
+        """One entry by id, or None. May return non-public rows; the route gates.
+
+        Never an entry under an excluded topic, though: those are None, which the
+        route turns into the same 404 a missing id gets.
+        """
         ...
 
     def segments(self, entry_id: str, lang: Lang) -> Sequence[SegmentRow]:
-        """Transcript lines of one entry in one language, ordered by `idx`."""
+        """Transcript lines of one entry in one language, ordered by `idx`.
+
+        Empty for an entry under an excluded topic, whether or not the caller asked
+        about the entry first.
+        """
         ...
 
     def topics(self) -> Sequence[TopicRow]:
-        """Every topic, flat, with the count of its own public entries."""
+        """Every topic that is on the public site, flat, with the count of its own
+        public entries.
+
+        Excluded topics are absent, and so is everything beneath them: the browse tree
+        is built from this list, and listing a locked topic would invite its deep
+        links back in through the tree.
+        """
         ...
 
     def scholars(self) -> Sequence[ScholarRow]:
@@ -117,7 +136,8 @@ class LibraryRepository(Protocol):
     ) -> EntryPage | None:
         """One page of a scholar's entries, or None if the scholar does not exist.
 
-        `EntryPage.total` counts public entries only; an implementation that counted
-        withheld ones would leak their number through the page count.
+        `EntryPage.total` counts public entries only, and entries under an excluded
+        topic are in neither the page nor the total; an implementation that counted
+        either would leak their number through the page count.
         """
         ...

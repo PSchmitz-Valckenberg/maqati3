@@ -5,6 +5,13 @@
 of withheld ones would leak that they exist. "Published" here is the route's
 `is_published`, restated as SQL: visibility public, attribution not `not_sure`, and the
 Arabic approved.
+
+The one gate that is *not* left to the route is the topic lock. `excluded` means the
+material is off the public site entirely, so it is applied here, to every query, and
+the route never sees such a row at all: an excluded entry comes back as None and reads
+as "no such entry", which is exactly what it has to look like from outside. Whether a
+topic is excluded is asked of the `topic_excluded` view (migration 0006), which carries
+the inheritance down the sub-topics.
 """
 
 from __future__ import annotations
@@ -24,11 +31,20 @@ from maqati3.api.repository import (
 from maqati3.db.sql import Executor
 from maqati3.domain import Attribution, ContentClass, Lang, ReviewState, SpanRole, Visibility
 
-_PUBLISHED = """
+#: An entry whose topic is locked, directly or by inheritance. Aliased `e` everywhere
+#: it is used, like the rest of these fragments. An entry with no topic yet is not
+#: excluded: `excluded` is a decision about a topic, and none has been made about this
+#: one.
+_NOT_EXCLUDED = """
+    NOT EXISTS (SELECT 1 FROM topic_excluded x WHERE x.id = e.topic_id)
+"""
+
+_PUBLISHED = f"""
     e.visibility = 'public'
     AND e.attribution <> 'not_sure'
     AND EXISTS (SELECT 1 FROM entry_language l
                  WHERE l.entry_id = e.id AND l.lang = 'ar' AND l.state = 'approved')
+    AND {_NOT_EXCLUDED}
 """
 
 _ENTRY_COLUMNS = """
@@ -38,15 +54,18 @@ _ENTRY_COLUMNS = """
 """
 
 _ENTRY = f"""
-SELECT {_ENTRY_COLUMNS} FROM entry e JOIN scholar s ON s.id = e.scholar_id WHERE e.id = %s
+SELECT {_ENTRY_COLUMNS} FROM entry e JOIN scholar s ON s.id = e.scholar_id
+ WHERE e.id = %s AND {_NOT_EXCLUDED}
 """
 
 _LANGUAGES = "SELECT entry_id, lang, state FROM entry_language WHERE entry_id = ANY(%s)"
 
-_SEGMENTS = """
+_SEGMENTS = f"""
 SELECT s.idx, s.t_start_ms, s.t_end_ms, s.span_role, s.citable, t.text_raw
-  FROM segment s JOIN segment_text t ON t.segment_id = s.id
- WHERE s.entry_id = %s AND t.lang = %s
+  FROM segment s
+  JOIN segment_text t ON t.segment_id = s.id
+  JOIN entry e ON e.id = s.entry_id
+ WHERE s.entry_id = %s AND t.lang = %s AND {_NOT_EXCLUDED}
  ORDER BY s.idx
 """
 
@@ -54,6 +73,7 @@ _TOPICS = f"""
 SELECT t.id, t.parent_id, t.name_ar, t.name_en, t.content_class,
        (SELECT count(*) FROM entry e WHERE e.topic_id = t.id AND {_PUBLISHED})
   FROM topic t
+ WHERE NOT EXISTS (SELECT 1 FROM topic_excluded x WHERE x.id = t.id)
  ORDER BY t.id
 """
 
