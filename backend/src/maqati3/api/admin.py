@@ -39,6 +39,7 @@ from maqati3.api.desk import (
 from maqati3.api.routes import PREVIEW_TYPES, Store
 from maqati3.api.schemas import ScholarOut
 from maqati3.auth.identity import IdentityError, IdentityProvider
+from maqati3.transcription import AlreadyQueued, AlreadyTranscribed, UnknownEntry
 
 log = logging.getLogger("maqati3")
 
@@ -60,6 +61,10 @@ CSRF_HEADER_MISSING = "csrf_header_missing"
 NOT_WAITING = "not_waiting"
 UNKNOWN_SCHOLAR = "unknown_scholar"
 SCHOLAR_EXISTS = "scholar_exists"
+TRANSCRIPTION_NOT_CONFIGURED = "transcription_not_configured"
+UNKNOWN_ENTRY = "unknown_entry"
+ALREADY_TRANSCRIBED = "already_transcribed"
+ALREADY_QUEUED = "already_queued"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -75,6 +80,9 @@ class AdminConfig:
     #: back to, and what decides whether the session cookie is marked Secure.
     public_url: str
     session_secret: str
+    #: Whether a speech-to-text provider is configured. False closes the one route that
+    #: spends money, the same way a missing Google client closes the whole dashboard.
+    transcription: bool = False
 
     def __post_init__(self) -> None:
         if len(self.session_secret) < MIN_SESSION_SECRET:
@@ -142,6 +150,8 @@ router = APIRouter(prefix="/api/v1/admin")
 class AdminOut(BaseModel):
     email: str
     name: str | None = None
+    #: What this dashboard can offer, so the page does not show a button that 503s.
+    transcription: bool = False
 
 
 class RegisteredOut(BaseModel):
@@ -272,8 +282,8 @@ def logout(request: Request) -> StatusOut:
 
 
 @router.get("/me")
-def me(admin: Admin) -> AdminOut:
-    return AdminOut(email=admin.email, name=admin.name)
+def me(admin: Admin, config: Config) -> AdminOut:
+    return AdminOut(email=admin.email, name=admin.name, transcription=config.transcription)
 
 
 # ------------------------------------------------------------------ the dashboard
@@ -322,6 +332,30 @@ def discard(sha256: str, config: Config, admin: Admin, store: Store) -> StatusOu
         # The row is gone, and a path outside staging must never be deleted. Say so.
         log.warning("discarded upload pointed outside staging: %s", path)
     return StatusOut(status="discarded")
+
+
+class TranscriptionOut(BaseModel):
+    job_id: int
+
+
+@router.post("/entries/{entry_id}/transcribe", status_code=202, dependencies=Mutating)
+def transcribe(entry_id: str, config: Config, admin: Admin) -> TranscriptionOut:
+    """Queue the Arabic transcription of one entry.
+
+    202, not 200: nothing has been transcribed when this returns. A worker picks the
+    job up, and the draft appears for review minutes later.
+    """
+    if not config.transcription:
+        raise HTTPException(status_code=503, detail=TRANSCRIPTION_NOT_CONFIGURED)
+    try:
+        job_id = config.desk.request_transcription(entry_id, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except AlreadyTranscribed as exc:
+        raise HTTPException(status_code=409, detail=ALREADY_TRANSCRIBED) from exc
+    except AlreadyQueued as exc:
+        raise HTTPException(status_code=409, detail=ALREADY_QUEUED) from exc
+    return TranscriptionOut(job_id=job_id)
 
 
 @router.post("/scholars", dependencies=Mutating)
