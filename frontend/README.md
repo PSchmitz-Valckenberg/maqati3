@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Maqati3 Frontend
+
+The web interface for Maqati3, an archive and search platform for recorded fatawa. Built with Next.js (App Router), React 19, Tailwind CSS, and `next-intl` supporting English, Arabic (RTL), and German.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and start the local development server:
 
 ```bash
+cd frontend
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The frontend will be available at [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Backend Proxy Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+In development, Next.js proxies API requests to the backend:
 
-## Learn More
+- Configure `API_ORIGIN` in your environment (defaults to `http://localhost:8000`).
+- **Dev proxy payload limit:** The local development proxy enforces a **10 MB payload limit** on request bodies (e.g. file uploads). For larger uploads in development or production setups, see [docs/BETRIEB.md](../docs/BETRIEB.md) (or [docs/BETRIEB.en.md](../docs/BETRIEB.en.md)).
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure & Localization
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Pages and Routes:** `src/app/[locale]/` — localized routes using the App Router.
+- **Translations:** `messages/{en,ar,de}.json` — interface strings managed with `next-intl`.
+- **Public Assets:** `public/` — static assets served at the root.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Verification & Testing
 
-## Deploy on Vercel
+Run code quality checks and tests before submitting changes:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Lint code
+npm run lint
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Type check
+npx tsc --noEmit
+
+# Run unit tests
+npm test
+```
