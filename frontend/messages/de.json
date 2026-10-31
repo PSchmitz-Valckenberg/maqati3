@@ -122,6 +122,14 @@
       "network": "Die Verbindung wurde unterbrochen.",
       "generic": "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
     },
-    "play": "Abspielen"
+    "play": "Abspielen",
+    "log": {
+      "title": "Aktivitätsprotokoll",
+      "empty": "Noch keine Aktionen protokolliert.",
+      "who": "Admin",
+      "what": "Aktion",
+      "subject": "Gegenstand",
+      "when": "Zeit"
+    }
   }
 }

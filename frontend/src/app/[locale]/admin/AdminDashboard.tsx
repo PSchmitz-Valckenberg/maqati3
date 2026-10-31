@@ -7,11 +7,13 @@ import {
   addScholar,
   discardItem,
   fetchItems,
+  fetchLog,
   fetchMe,
   fetchScholars,
   mediaUrl,
   registerItem,
   signOut,
+  type LogEntry,
   type Me,
 } from '@/lib/admin/api';
 import {
@@ -52,9 +54,11 @@ const FIELD =
 
 export default function AdminDashboard() {
   const t = useTranslations('admin');
+  const locale = useLocale();
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [items, setItems] = useState<Item[]>([]);
   const [scholars, setScholars] = useState<Scholar[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const search = useSyncExternalStore(
     subscribeToLocation,
     () => window.location.search,
@@ -63,9 +67,14 @@ export default function AdminDashboard() {
   const result = loginResult(search);
 
   const reload = useCallback(async () => {
-    const [list, people] = await Promise.all([fetchItems(), fetchScholars()]);
+    const [list, people, logList] = await Promise.all([
+      fetchItems(),
+      fetchScholars(),
+      fetchLog().catch(() => []),
+    ]);
     setItems(list);
     setScholars(people);
+    setLogs(logList);
   }, []);
 
   useEffect(() => {
@@ -134,6 +143,46 @@ export default function AdminDashboard() {
             <RegisteredCard key={item.sha256} item={item} />
           ))}
         </ul>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold">{t('log.title')}</h2>
+        {logs.length === 0 && <p className="text-neutral-600 dark:text-neutral-400">{t('log.empty')}</p>}
+        {logs.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800">
+            <table className="w-full text-start text-sm">
+              <thead className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+                <tr>
+                  <th className="px-4 py-3">{t('log.when')}</th>
+                  <th className="px-4 py-3">{t('log.who')}</th>
+                  <th className="px-4 py-3">{t('log.what')}</th>
+                  <th className="px-4 py-3">{t('log.subject')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                {logs.map((entry, idx) => (
+                  <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/50">
+                    <td className="whitespace-nowrap px-4 py-3 text-neutral-500">
+                      {new Intl.DateTimeFormat(locale, {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      }).format(new Date(entry.at))}
+                    </td>
+                    <td className="px-4 py-3 font-medium">{entry.admin_email}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded bg-neutral-100 px-2 py-0.5 font-mono text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                        {entry.action}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">
+                      {entry.subject || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );
