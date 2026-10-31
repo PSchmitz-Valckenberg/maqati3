@@ -119,6 +119,14 @@ class Desk(Protocol):
         """Raises `ScholarExists`."""
         ...
 
+    def request_transcription(self, entry_id: str, admin_email: str) -> int:
+        """Queue a transcription of this entry's Arabic; the job id.
+
+        Raises `UnknownEntry`, `AlreadyTranscribed` or `AlreadyQueued` (see
+        `maqati3.transcription`), and in every one of those cases queues nothing.
+        """
+        ...
+
 
 __all__ = [
     "AdminUser",

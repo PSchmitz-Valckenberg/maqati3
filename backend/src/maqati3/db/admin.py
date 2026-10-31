@@ -24,6 +24,13 @@ from maqati3.api.desk import (
 )
 from maqati3.api.uploads import SUBMISSION_PREFIX, is_submission_key
 from maqati3.db.sql import Executor
+from maqati3.domain import Lang, ReviewState
+from maqati3.transcription import (
+    JOB_KIND,
+    AlreadyQueued,
+    AlreadyTranscribed,
+    UnknownEntry,
+)
 
 # ------------------------------------------------------------------ the admin list
 
@@ -137,6 +144,20 @@ INSERT INTO scholar (id, name_ar, name_en) VALUES (%s, %s, %s)
 ON CONFLICT (id) DO NOTHING RETURNING id
 """
 
+# ------------------------------------------------------------------ transcription
+
+_LOCK_ENTRY = "SELECT 1 FROM entry WHERE id = %s FOR UPDATE"
+_AR_STATE = "SELECT state FROM entry_language WHERE entry_id = %s AND lang = %s"
+_HAS_SEGMENTS = "SELECT 1 FROM segment WHERE entry_id = %s LIMIT 1"
+#: Queued or running. A job that is done or has given up leaves nothing behind, so it
+#: never stands in the way of asking again.
+_RUN_IN_FLIGHT = """
+SELECT 1 FROM job
+ WHERE kind = %s AND state IN ('pending', 'running') AND payload->>'entry_id' = %s
+ LIMIT 1
+"""
+_ENQUEUE = "INSERT INTO job (kind, payload) VALUES (%s, %s::jsonb) RETURNING id"
+
 
 def _text(value: object) -> str | None:
     return None if value is None else str(value)
@@ -237,6 +258,29 @@ class PgDesk:
             if not self._executor.fetchall(_ADD_SCHOLAR, (scholar_id, name_ar, name_en)):
                 raise ScholarExists(scholar_id)
             self._admins.log(admin_email, "add_scholar", scholar_id, {"name_en": name_en})
+
+    def request_transcription(self, entry_id: str, admin_email: str) -> int:
+        """Queue one transcription of the Arabic, if there is nothing to overwrite.
+
+        Everything is decided inside one transaction with the entry locked: two admins
+        pressing the button at the same moment would otherwise both see an empty
+        timeline and both queue a run.
+        """
+        lang = Lang.AR.value
+        with self._executor.transaction():
+            if not self._executor.fetchall(_LOCK_ENTRY, (entry_id,)):
+                raise UnknownEntry(entry_id)
+            state = self._executor.fetchall(_AR_STATE, (entry_id, lang))
+            if state and str(state[0][0]) != ReviewState.NOT_STARTED.value:
+                raise AlreadyTranscribed(entry_id)
+            if self._executor.fetchall(_HAS_SEGMENTS, (entry_id,)):
+                raise AlreadyTranscribed(entry_id)
+            if self._executor.fetchall(_RUN_IN_FLIGHT, (JOB_KIND, entry_id)):
+                raise AlreadyQueued(entry_id)
+            payload = json.dumps({"entry_id": entry_id, "lang": lang})
+            rows = self._executor.fetchall(_ENQUEUE, (JOB_KIND, payload))
+            self._admins.log(admin_email, "transcribe", entry_id, {"lang": lang})
+        return int(str(rows[0][0]))
 
 
 def _keys(value: object) -> list[str]:

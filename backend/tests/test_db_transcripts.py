@@ -19,7 +19,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+from maqati3.asr import AsrLine, AsrTranscript
+from maqati3.db.admin import PgDesk
+from maqati3.db.submissions import PgSubmissions
 from maqati3.db.transcripts import PgTranscripts
+from maqati3.dedup.fingerprint import Fingerprint
+from maqati3.domain import Lang
 from maqati3.transcription import (
     JOB_KIND,
     AlreadyQueued,
@@ -27,12 +33,6 @@ from maqati3.transcription import (
     EmptyTranscript,
     UnknownEntry,
 )
-
-from maqati3.asr import AsrLine, AsrTranscript
-from maqati3.db.admin import PgDesk
-from maqati3.db.submissions import PgSubmissions
-from maqati3.dedup.fingerprint import Fingerprint
-from maqati3.domain import Lang
 
 REPO_MIGRATIONS = Path(__file__).resolve().parents[2] / "db" / "migrations"
 SCHEMA = "maqati3_asrtest"
