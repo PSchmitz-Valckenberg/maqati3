@@ -5,7 +5,9 @@
  */
 import type { Item, Scholar } from './logic';
 
-export type Me = { email: string; name: string | null };
+/** `transcription` says whether this server has a speech-to-text provider; without
+ * one the route answers 503 and the page does not offer the button. */
+export type Me = { email: string; name: string | null; transcription: boolean };
 
 /** A failed call, with the server's reason when it gave one (`not_waiting`, ...). */
 export class AdminError extends Error {
@@ -62,6 +64,11 @@ export const discardItem = (sha256: string) =>
   post<{ status: string }>(`/api/v1/admin/submissions/${encodeURIComponent(sha256)}/discard`);
 
 export const addScholar = (scholar: Scholar) => post<Scholar>('/api/v1/admin/scholars', scholar);
+
+/** Queue the Arabic transcription of one entry. 202: nothing is transcribed yet, a
+ * worker picks the job up and the draft appears minutes later. */
+export const requestTranscription = (entryId: string) =>
+  post<{ job_id: number }>(`/api/v1/admin/entries/${encodeURIComponent(entryId)}/transcribe`);
 
 export const signOut = () => post<{ status: string }>('/api/v1/admin/auth/logout');
 

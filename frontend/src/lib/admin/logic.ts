@@ -48,11 +48,32 @@ export function canRegister(scholarId: string, busy: boolean): boolean {
   return !busy && scholarId.trim() !== '';
 }
 
+/** Whether to offer the transcription button at all.
+ *
+ * The server refuses with 503 when no provider is configured, and this keeps the page
+ * from showing a button that can only fail. `entryId` is null until an admin has
+ * registered the upload: there is nothing to transcribe before there is an entry. */
+export function canTranscribe({
+  transcription,
+  entryId,
+  busy,
+}: {
+  transcription: boolean;
+  entryId: string | null;
+  busy: boolean;
+}): boolean {
+  return transcription && entryId !== null && !busy;
+}
+
 const ERROR_KEYS: Record<string, string> = {
   not_waiting: 'notWaiting',
   unknown_scholar: 'unknownScholar',
   scholar_exists: 'scholarExists',
   admin_login_required: 'signedOut',
+  transcription_not_configured: 'transcriptionNotConfigured',
+  unknown_entry: 'unknownEntry',
+  already_transcribed: 'alreadyTranscribed',
+  already_queued: 'alreadyQueued',
   network: 'network',
 };
 

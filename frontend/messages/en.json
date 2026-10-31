@@ -115,11 +115,18 @@
     "discardConfirm": "Delete this video for good?",
     "entry": "Entry {id}",
     "registeredBy": "registered by {email}",
+    "transcribe": "Transcribe",
+    "transcribeHint": "Sends the recording to the transcription service. The draft appears here for review in a few minutes.",
+    "transcribeQueued": "Transcription requested.",
     "error": {
       "notWaiting": "Someone has already dealt with this one. The list was reloaded.",
       "unknownScholar": "That scholar is not in the archive. Please choose again.",
       "scholarExists": "A scholar with that id already exists.",
       "signedOut": "You have been signed out. Please sign in again.",
+      "transcriptionNotConfigured": "This server has no transcription service set up yet.",
+      "unknownEntry": "That entry is not in the archive any more. The list was reloaded.",
+      "alreadyTranscribed": "This recording already has a transcript, or someone is working on one.",
+      "alreadyQueued": "A transcription for this recording is already on its way.",
       "network": "The connection was interrupted.",
       "generic": "Something went wrong. Please try again."
     },

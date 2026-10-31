@@ -11,11 +11,13 @@ import {
   fetchScholars,
   mediaUrl,
   registerItem,
+  requestTranscription,
   signOut,
   type Me,
 } from '@/lib/admin/api';
 import {
   canRegister,
+  canTranscribe,
   errorKey,
   groupItems,
   loginResult,
@@ -131,7 +133,11 @@ export default function AdminDashboard() {
         {registered.length === 0 && <p className="text-neutral-600">{t('registered.empty')}</p>}
         <ul className="space-y-4">
           {registered.map((item) => (
-            <RegisteredCard key={item.sha256} item={item} />
+            <RegisteredCard
+              key={item.sha256}
+              item={item}
+              transcription={view.me.transcription}
+            />
           ))}
         </ul>
       </section>
@@ -379,10 +385,29 @@ function NewScholar({
   );
 }
 
-function RegisteredCard({ item }: { item: Item }) {
+function RegisteredCard({ item, transcription }: { item: Item; transcription: boolean }) {
   const t = useTranslations('admin');
   const locale = useLocale();
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const entryId = item.entry?.entry_id ?? null;
+
+  async function transcribe() {
+    if (entryId === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await requestTranscription(entryId);
+      setQueued(true);
+    } catch (problem: unknown) {
+      setError(codeOf(problem));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <li className="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
       <Meta item={item} />
@@ -398,6 +423,21 @@ function RegisteredCard({ item }: { item: Item }) {
         {open ? '▲' : '▶'} {t('play')}
       </button>
       {open && <Player sha256={item.sha256} />}
+      {queued ? (
+        <p className="text-sm text-emerald-800 dark:text-emerald-300">{t('transcribeQueued')}</p>
+      ) : (
+        canTranscribe({ transcription, entryId, busy: false }) && (
+          <div className="space-y-1">
+            <button type="button" className={SECONDARY} disabled={busy} onClick={transcribe}>
+              {busy ? t('working') : t('transcribe')}
+            </button>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('transcribeHint')}</p>
+          </div>
+        )
+      )}
+      {error && (
+        <p className="text-sm text-red-700 dark:text-red-300">{t(`error.${errorKey(error)}`)}</p>
+      )}
     </li>
   );
 }
