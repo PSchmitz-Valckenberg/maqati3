@@ -31,6 +31,7 @@ Tested with these exact files (`deploy/`): on 2026-10-25 locally (Arm, Chrome te
 |---|---|---|
 | `DATABASE_URL` | yes | set automatically by `deploy/compose.yml` |
 | `UPLOAD_KEY` | yes | The secret key in the upload link. Without it the server will not start. Changing it invalidates all previous links. |
+| `TRUST_FORWARDED_FOR` | no | `true` only behind your own reverse proxy (set in `deploy/compose.yml`). Wrong upload keys are limited per client (30 per 10 minutes, then 429); without this setting the server sees the proxy's address for everyone. Set to `true` without a proxy, the limit can be dodged by sending the header yourself. |
 | `STAGING_DIR` | no | Directory where uploads reside until an admin registers them. Inside container: `/var/lib/maqati3/staging` on volume `staging`. |
 | `MAX_UPLOAD_BYTES` | no | Default 2 GiB per file (Caddy permits up to 2 GB) |
 | `FPCALC_PATH` | no | Default `fpcalc` (included in container image) |

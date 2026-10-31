@@ -51,6 +51,7 @@ eingespielt; er bleibt dort ohnehin zu, bis Domain und Google-Zugang eingerichte
 |---|---|---|
 | `DATABASE_URL` | ja | setzt `deploy/compose.yml` selbst |
 | `UPLOAD_KEY` | ja | Der Schlüssel im Upload-Link. Ohne ihn startet der Server nicht. Ändern = alle alten Links ungültig. |
+| `TRUST_FORWARDED_FOR` | nein | `true` nur hinter dem eigenen Reverse-Proxy (in `deploy/compose.yml` gesetzt). Falsche Upload-Schlüssel werden pro Absender begrenzt (30 pro 10 Minuten, danach 429); ohne diese Einstellung sieht der Server für alle die Adresse des Proxys. Ohne Proxy auf `true` gesetzt, lässt sich die Grenze mit einem selbst gesendeten Header umgehen. |
 | `STAGING_DIR` | nein | Wo Uploads liegen, bis ein Admin sie registriert. Im Container `/var/lib/maqati3/staging` auf dem Volume `staging`. |
 | `MAX_UPLOAD_BYTES` | nein | Standard 2 GiB je Datei (Caddy lässt bis 2 GB durch) |
 | `FPCALC_PATH` | nein | Standard `fpcalc` (im Image enthalten) |

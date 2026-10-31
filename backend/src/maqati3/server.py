@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     #: random -- `python -c "import secrets; print(secrets.token_urlsafe(24))"`.
     #: Changing it revokes every link handed out with the old one.
     upload_key: str = ""
+    #: True only when every request comes through our own reverse proxy (Caddy), which
+    #: appends the client's address to X-Forwarded-For. Left off, the rate limit for wrong
+    #: keys sees the proxy's address for everyone; turned on without a proxy, anyone can
+    #: dodge it by sending the header.
+    trust_forwarded_for: bool = False
     staging_dir: Path = Path("/var/lib/maqati3/staging")
     max_upload_bytes: int = DEFAULT_MAX_BYTES
     fpcalc_path: str = "fpcalc"
@@ -160,6 +165,7 @@ def build_app(settings: Settings, *, connect_kwargs: Mapping[str, Any] | None = 
         submissions=submissions,
         lifespan=lifespan,
         upload_key=settings.upload_key,
+        trust_forwarded_for=settings.trust_forwarded_for,
         admin=admin_config(settings, executor),
     )
     app.state.store = store

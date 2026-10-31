@@ -7,9 +7,19 @@ import hmac
 import mimetypes
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 
+from maqati3.api.ratelimit import FailureLimiter, client_address
 from maqati3.api.repository import (
     EntryRow,
     LibraryRepository,
@@ -120,32 +130,47 @@ def get_upload_key() -> str | None:
 
 
 UPLOAD_KEY_REQUIRED = "upload_key_required"
+TOO_MANY_ATTEMPTS = "too_many_attempts"
 
 
-def _check_key(expected: str | None, given: str | None) -> None:
+def _check_key(request: Request, expected: str | None, given: str | None) -> None:
     if expected is None:
         return
-    if given is None or not hmac.compare_digest(given.encode(), expected.encode()):
+    limiter: FailureLimiter = request.app.state.key_limiter
+    client = client_address(request, trust_forwarded_for=request.app.state.trust_forwarded_for)
+    if limiter.blocked(client):
+        # Before the key is looked at, even a right one: see api/ratelimit.py.
+        raise HTTPException(
+            status_code=429,
+            detail=TOO_MANY_ATTEMPTS,
+            headers={"Retry-After": str(int(limiter.window_s))},
+        )
+    if given is None:
+        raise HTTPException(status_code=401, detail=UPLOAD_KEY_REQUIRED)
+    if not hmac.compare_digest(given.encode(), expected.encode()):
+        limiter.record_failure(client)
         raise HTTPException(status_code=401, detail=UPLOAD_KEY_REQUIRED)
 
 
 def require_upload_key(
+    request: Request,
     expected: Annotated[str | None, Depends(get_upload_key)],
     x_upload_key: Annotated[str | None, Header()] = None,
 ) -> None:
     """The unlisted link hides the page, not the API behind it. Its key is the credential:
     without it anyone who found the endpoint could fill the disk."""
-    _check_key(expected, x_upload_key)
+    _check_key(request, expected, x_upload_key)
 
 
 def require_upload_key_or_query(
+    request: Request,
     expected: Annotated[str | None, Depends(get_upload_key)],
     x_upload_key: Annotated[str | None, Header()] = None,
     k: Annotated[str | None, Query()] = None,
 ) -> None:
     """Same key, also accepted as ?k= -- only for media, because a <video src> cannot
     send a header."""
-    _check_key(expected, x_upload_key if x_upload_key is not None else k)
+    _check_key(request, expected, x_upload_key if x_upload_key is not None else k)
 
 
 Keyed = Depends(require_upload_key)

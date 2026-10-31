@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from maqati3.api.admin import SESSION_COOKIE, SESSION_MAX_AGE_S, AdminConfig
 from maqati3.api.admin import router as admin_router
+from maqati3.api.ratelimit import FailureLimiter
 from maqati3.api.repository import LibraryRepository
 from maqati3.api.routes import (
     get_extractor,
@@ -37,6 +38,8 @@ def create_app(
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
     upload_key: str | None = None,
     admin: AdminConfig | None = None,
+    key_limiter: FailureLimiter | None = None,
+    trust_forwarded_for: bool = False,
 ) -> FastAPI:
     """Build the API around one implementation of each boundary.
 
@@ -50,6 +53,8 @@ def create_app(
     app.include_router(router)
     app.include_router(admin_router)
     app.state.admin = admin
+    app.state.key_limiter = key_limiter or FailureLimiter()
+    app.state.trust_forwarded_for = trust_forwarded_for
     app.dependency_overrides[get_repository] = lambda: repository
     if store is not None:
         app.dependency_overrides[get_upload_store] = lambda: store

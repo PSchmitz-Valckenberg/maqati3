@@ -99,9 +99,13 @@ def test_a_request_without_any_key_is_not_a_guess() -> None:
 
 
 def test_the_right_key_never_counts_against_the_client() -> None:
-    client, _ = build()
+    client, limiter = build()
+    # Past the key check this app has no store wired, so the request ends in a 500; what
+    # matters here is that it got past the key and was never counted.
+    client = TestClient(client.app, raise_server_exceptions=False)
     for _ in range(LIMIT + 2):
-        assert post(client, KEY).status_code != 429
+        assert post(client, KEY).status_code == 500
+    assert limiter.tracked() == 0
 
 
 def test_a_forwarded_address_is_ignored_unless_the_proxy_is_trusted() -> None:
