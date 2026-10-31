@@ -246,6 +246,182 @@ def test_integration_a_page_of_a_scholars_entries_counts_published_only() -> Non
         assert repository.entries_by_scholar("no-such-scholar", limit=2, offset=0) is None
 
 
+# --------------------------------------------- excluded topics: the gate
+
+
+def exclude(connection: Any, topic_id: str) -> None:
+    connection.execute(
+        "UPDATE topic SET content_class = 'excluded' WHERE id = %s", (topic_id,)
+    )
+
+
+def add_topic(connection: Any, topic_id: str, parent_id: str) -> None:
+    connection.execute(
+        "INSERT INTO topic (id, parent_id, name_ar, name_en) VALUES (%s, %s, 'موضوع', 'Topic')",
+        (topic_id, parent_id),
+    )
+
+
+def add_segment(connection: Any, entry_id: str, *, idx: int = 0, text: str = "هذا جائز") -> None:
+    segment_id = connection.execute(
+        "INSERT INTO segment (entry_id, idx, t_start_ms, span_role, citable) "
+        "VALUES (%s, %s, 0, 'scholar_own', true) RETURNING id",
+        (entry_id, idx),
+    ).fetchone()[0]
+    connection.execute(
+        "INSERT INTO segment_text (segment_id, lang, text_raw, provenance) "
+        "VALUES (%s, 'ar', %s, 'human')",
+        (segment_id, text),
+    )
+
+
+@requires_database
+def test_integration_an_entry_in_an_excluded_topic_is_not_reachable() -> None:
+    # The first of the blocking cases: `excluded` is not "hidden from search", it is
+    # gone from the public site. CLAUDE.md, "What `excluded` means".
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_entry(connection, "uthaymin-000421", topic_id="manhaj.takfir")
+        exclude(connection, "manhaj.takfir")
+
+        assert PgLibraryRepository(executor).entry("uthaymin-000421") is None
+
+
+@requires_database
+def test_integration_an_entry_under_a_sub_topic_of_an_excluded_topic_is_not_reachable() -> None:
+    # Exclusion is inherited, however deep: excluding `manhaj` excludes `manhaj.takfir`
+    # and anything below it, whatever those rows say about themselves.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_topic(connection, "manhaj.takfir.ruling", "manhaj.takfir")
+        add_entry(connection, "uthaymin-000421", topic_id="manhaj.takfir")
+        add_entry(connection, "uthaymin-000422", topic_id="manhaj.takfir.ruling")
+        exclude(connection, "manhaj")
+
+        repository = PgLibraryRepository(executor)
+
+        assert repository.entry("uthaymin-000421") is None
+        assert repository.entry("uthaymin-000422") is None
+
+
+@requires_database
+def test_integration_the_transcript_of_an_entry_in_an_excluded_topic_is_empty() -> None:
+    # The route reads the entry first and would already 404, but the transcript is the
+    # citable deep link itself: it must not depend on a caller asking in the right order.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_entry(connection, "uthaymin-000421", topic_id="manhaj.takfir")
+        add_segment(connection, "uthaymin-000421")
+        exclude(connection, "manhaj")
+
+        assert PgLibraryRepository(executor).segments("uthaymin-000421", Lang.AR) == []
+
+
+@requires_database
+def test_integration_an_excluded_topic_and_its_children_are_not_in_the_browse_tree() -> None:
+    # A browse tree is an invitation: hiding an excluded topic from search while still
+    # listing it protects nothing.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_topic(connection, "manhaj.takfir.ruling", "manhaj.takfir")
+        exclude(connection, "manhaj")
+
+        listed = {t.id for t in PgLibraryRepository(executor).topics()}
+
+        assert "manhaj" not in listed
+        assert "manhaj.takfir" not in listed
+        assert "manhaj.takfir.ruling" not in listed
+        assert "fiqh.salah" in listed
+
+
+@requires_database
+def test_integration_an_excluded_entry_is_in_neither_the_page_nor_its_total() -> None:
+    # `total` drives the page count, so leaving an excluded entry in it would show the
+    # reader that something is being kept from them, and how much.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_entry(connection, "uthaymin-000001", topic_id="fiqh.salah")
+        add_entry(connection, "uthaymin-000002", topic_id="manhaj.takfir")
+        exclude(connection, "manhaj")
+
+        page = PgLibraryRepository(executor).entries_by_scholar(
+            "ibn-uthaymin", limit=50, offset=0
+        )
+
+        assert page is not None
+        assert [e.id for e in page.items] == ["uthaymin-000001"]
+        assert page.total == 1
+
+
+@requires_database
+def test_integration_scholar_and_topic_counts_ignore_excluded_entries() -> None:
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_entry(connection, "uthaymin-000001", topic_id="fiqh.salah")
+        add_entry(connection, "uthaymin-000002", topic_id="manhaj.takfir")
+        exclude(connection, "manhaj.takfir")
+        repository = PgLibraryRepository(executor)
+
+        counts = {s.id: s.entry_count for s in repository.scholars()}
+        topics = {t.id: t.entry_count for t in repository.topics()}
+
+        assert counts["ibn-uthaymin"] == 1
+        assert topics["fiqh.salah"] == 1
+
+
+@requires_database
+def test_integration_a_segment_under_an_inherited_exclusion_is_not_citable() -> None:
+    # `segment_citable` checked the entry's own topic only, so an entry filed under a
+    # sub-topic of an excluded topic stayed quotable by the answer path.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_entry(connection, "uthaymin-000421", topic_id="manhaj.takfir")
+        add_segment(connection, "uthaymin-000421")
+        exclude(connection, "manhaj")
+
+        rows = connection.execute(
+            "SELECT count(*) FROM segment_citable WHERE entry_id = 'uthaymin-000421'"
+        ).fetchone()
+
+        assert rows[0] == 0
+
+
+@requires_database
+def test_integration_a_sources_only_topic_stays_browsable_and_citable() -> None:
+    # The passing side. `sources_only` differs from `open` in synthesis only; it is a
+    # full public surface, so nothing here may fall through the exclusion gate.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        connection.execute(
+            "UPDATE topic SET content_class = 'sources_only' WHERE id = 'manhaj.fitan'"
+        )
+        add_entry(connection, "uthaymin-000421", topic_id="manhaj.fitan")
+        add_segment(connection, "uthaymin-000421")
+        repository = PgLibraryRepository(executor)
+
+        assert "manhaj.fitan" in {t.id for t in repository.topics()}
+        assert repository.entry("uthaymin-000421") is not None
+        assert len(repository.segments("uthaymin-000421", Lang.AR)) == 1
+
+
+@requires_database
+def test_integration_an_excluded_topic_hides_neither_its_siblings_nor_untopiced_entries() -> None:
+    # An entry whose topic is not set yet is not excluded by default: `excluded` is a
+    # decision about a topic, and no decision has been made about this one.
+    with migrated_schema() as (connection, executor):
+        seed_all(executor)
+        add_entry(connection, "uthaymin-000001", topic_id="manhaj.fitan")
+        add_entry(connection, "uthaymin-000002", topic_id=None)
+        exclude(connection, "manhaj.takfir")
+        repository = PgLibraryRepository(executor)
+
+        listed = {t.id for t in repository.topics()}
+
+        assert "manhaj" in listed and "manhaj.fitan" in listed
+        assert repository.entry("uthaymin-000001") is not None
+        assert repository.entry("uthaymin-000002") is not None
+
+
 @requires_database
 def test_integration_the_pooled_executor_lets_only_one_of_two_racing_uploads_win() -> None:
     # The race the submission primary key exists for, run the way the server runs it:
