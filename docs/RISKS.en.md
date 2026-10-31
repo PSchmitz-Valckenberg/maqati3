@@ -216,7 +216,7 @@
 ### Media law: translated value judgments about living people
 **legal** · Severity: high · Likelihood: medium to high
 
-*Scenario:* The corpus contains a recording in which Scholar A says of a named, living person that they are a liar or a *mubtadi*. You translate it into German, make it available, and make it discoverable through AI. Legally, this is no longer third-party content: you translated, curated, and indexed it by topic, so the liability exemption in §§ 7–10 DDG does not apply. If the person concerned resides in Germany, an injunction can follow within days, with costs in the thousands of euros—and without a prior warning if the lawyer chooses that route. This is the most likely legal event for the entire project, more likely than any copyright issue.
+*Scenario:* The corpus contains a recording in which Scholar A says of a named, living person that they are a liar or a *mubtadi*. You translate it into German, make it available, and make it discoverable through AI. Legally, this is no longer third-party content: you translated, curated, and indexed it by topic, so the liability exemption in §§ 7–10 DDG does not apply. If the person concerned resides in Germany, an injunction can follow within days, with costs in the four-figure range—and without a prior warning if the lawyer chooses that route. This is the most likely legal event for the entire project, more likely than any copyright issue.
 
 *Early warning signal:* An automatic NER pass over the transcripts finds personal names not on your scholar list or transmitter list. Any such hit in an evaluative sentence is a candidate.
 
