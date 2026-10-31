@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -39,6 +41,9 @@ LEASE_SECONDS = 300
 
 #: Renewed well before the lease runs out, so one slow renewal does not lose it.
 HEARTBEAT_SECONDS = LEASE_SECONDS // 3
+
+#: How long the worker waits when the queue is empty.
+IDLE_SLEEP_S = 5.0
 
 
 class MediaMissing(Exception):
@@ -136,12 +141,40 @@ def work_once(
     return outcome
 
 
+def work_forever(
+    executor: Executor,
+    *,
+    transcriber: Transcriber,
+    transcripts: Transcripts,
+    idle_sleep_s: float = IDLE_SLEEP_S,
+    sleep: Callable[[float], None] = time.sleep,
+    running: Callable[[], bool] = lambda: True,
+) -> None:
+    """Run jobs until stopped, waiting between empty polls.
+
+    Polling, not LISTEN/NOTIFY: at one job per registered recording, a few seconds of
+    delay costs nothing and a second mechanism would have to be operated.
+    """
+    while running():
+        try:
+            outcome = work_once(executor, transcriber=transcriber, transcripts=transcripts)
+        except Exception:  # one bad job must not end the worker
+            log.exception("a transcription job failed outside the queue's own handling")
+            outcome = None
+        if outcome is None:
+            sleep(idle_sleep_s)
+        else:
+            log.info("transcription job finished: %s", outcome)
+
+
 __all__ = [
+    "IDLE_SLEEP_S",
     "LEASE_SECONDS",
     "MediaMissing",
     "Outcome",
     "Skipped",
     "Stored",
     "run_transcription",
+    "work_forever",
     "work_once",
 ]

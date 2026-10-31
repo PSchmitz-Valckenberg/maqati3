@@ -1,11 +1,13 @@
-"""`python -m maqati3 migrate | seed | serve | sweep | inbox | admin`.
+"""`python -m maqati3 migrate | seed | serve | worker | sweep | inbox | admin`.
 
 The first three run in that order on a fresh machine and again after every deploy; each
 is safe to repeat. Migrations are forward-only and skip what is applied; seeding upserts
 reference data and never deletes; serving is the API, which also sweeps abandoned
-uploads every half hour. `sweep` does that once, by hand. `inbox` lists what
-contributors sent in and an admin has not registered yet. `admin add|remove|list` manages
-who may sign in to the dashboard.
+uploads every half hour. `worker` is the second process of the same codebase: it takes
+transcription jobs off the queue, and it refuses to start without a provider key rather
+than draining the queue into failures. `sweep` removes abandoned uploads once, by hand.
+`inbox` lists what contributors sent in and an admin has not registered yet.
+`admin add|remove|list` manages who may sign in to the dashboard.
 """
 
 from __future__ import annotations
@@ -16,14 +18,17 @@ import sys
 
 import psycopg
 
+from maqati3.asr.soniox import SonioxTranscriber
 from maqati3.cli_admin import run_admin_command
 from maqati3.db.admin import PgAdmins
 from maqati3.db.migrate import migrate
 from maqati3.db.seed import load_scholars, load_topics, seed_reference
 from maqati3.db.sql import PsycopgExecutor
 from maqati3.db.submissions import PgSubmissions
+from maqati3.db.transcripts import PgTranscripts
 from maqati3.server import Settings, build_app, sweep_staging
 from maqati3.staging import LocalUploadStore
+from maqati3.worker import work_forever
 
 
 def print_inbox(submissions: PgSubmissions) -> None:
@@ -53,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     serve = commands.add_parser("serve", help="run the API")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+    commands.add_parser("worker", help="run transcription jobs off the queue")
     args = parser.parse_args(argv)
 
     settings = Settings()  # type: ignore[call-arg]  # database_url comes from the environment
@@ -66,6 +72,20 @@ def main(argv: list[str] | None = None) -> int:
             print(message, file=sys.stderr)
             return 1
         uvicorn.run(build_app(settings), host=args.host, port=args.port)
+        return 0
+
+    if args.command == "worker":
+        if not settings.soniox_api_key.strip():
+            print("SONIOX_API_KEY is not set; there is nothing for a worker to do",
+                  file=sys.stderr)
+            return 1
+        transcriber = SonioxTranscriber(settings.soniox_api_key, model=settings.soniox_model)
+        with psycopg.connect(settings.database_url, autocommit=True) as connection:
+            executor = PsycopgExecutor(connection)
+            print("worker: waiting for transcription jobs")
+            work_forever(
+                executor, transcriber=transcriber, transcripts=PgTranscripts(executor)
+            )
         return 0
 
     with psycopg.connect(settings.database_url, autocommit=True) as connection:

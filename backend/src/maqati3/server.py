@@ -19,6 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from maqati3.api.admin import AdminConfig
 from maqati3.api.app import create_app
+from maqati3.asr.soniox import DEFAULT_MODEL as SONIOX_MODEL
 from maqati3.auth.google import GoogleIdentityProvider
 from maqati3.db.admin import PgAdmins, PgDesk
 from maqati3.db.library import PgLibraryRepository
@@ -86,6 +87,10 @@ class Settings(BaseSettings):
     #: Signs the session cookie. Long and random -- `python -c "import secrets;
     #: print(secrets.token_urlsafe(48))"`. Changing it signs every admin out.
     session_secret: str = ""
+    #: The speech-to-text provider. Empty closes the transcription route (503) and
+    #: refuses to start a worker: nothing half-configured, like the admin login.
+    soniox_api_key: str = ""
+    soniox_model: str = SONIOX_MODEL
 
 
 def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | None:
@@ -116,6 +121,7 @@ def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | 
         desk=PgDesk(executor),
         public_url=settings.public_url,
         session_secret=settings.session_secret,
+        transcription=bool(settings.soniox_api_key.strip()),
     )
 
 
