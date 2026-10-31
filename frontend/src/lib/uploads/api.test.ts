@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import ar from '../../../messages/ar.json';
+import de from '../../../messages/de.json';
+import en from '../../../messages/en.json';
 import { mediaUrl, sendDecision, uploadFile } from './api';
 
 describe('upload key transport security', () => {
@@ -76,5 +79,41 @@ describe('upload key transport security', () => {
 
     expect(url).toBe('/api/v1/uploads/preview-123/media?k=secret-upload-key-xyz');
     expect(url).toContain(`?k=${secretKey}`);
+  });
+});
+
+describe('what the page says when the server refuses', () => {
+  /** The detail strings routes.py sends, each next to the message key the page looks up
+   * for it. A refusal nobody has words for falls through to `error.other`, which shows
+   * the contributor a bare code and tells them nothing about what to do. */
+  const refusals = [
+    { status: 429, detail: 'too_many_attempts' },
+    { status: 401, detail: 'upload_key_required' },
+    { status: 409, detail: 'not_awaiting_decision' },
+  ];
+
+  it.each(refusals)('turns $status into the code $detail', async ({ status, detail }) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ detail }), { status })),
+      );
+
+    try {
+      await expect(sendDecision('abc', { keep: false }, 'k')).rejects.toMatchObject({
+        code: detail,
+        status,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it.each(refusals)('has words for $detail in all three languages', ({ detail }) => {
+    for (const messages of [en, de, ar]) {
+      const text = (messages.upload.error as Record<string, string>)[detail];
+      expect(text ?? '').not.toBe('');
+    }
   });
 });
