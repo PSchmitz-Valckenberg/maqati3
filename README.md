@@ -77,15 +77,15 @@ flowchart LR
     C -- "new" --> A
     L -- "different" --> A["Admin dashboard<br/>(Google sign-in)"]
     A -- "register with<br/>the scholar" --> E["Draft entry<br/>attribution: not sure"]
-    E -.-> T["Arabic transcript<br/>with timestamps"]
+    E --> T["Arabic transcript<br/>with timestamps"]
     T -.-> D["Draft translations<br/>English · German"]
     D -.-> V["Line-by-line review<br/>per language"]
     V -.-> P["Public library<br/>every line at its second"]
 
     classDef built fill:#d1fae5,stroke:#047857,color:#064e3b
     classDef planned fill:#f5f5f4,stroke:#a8a29e,color:#57534e,stroke-dasharray:4 3
-    class U,C,R,L,A,E built
-    class T,D,V,P planned
+    class U,C,R,L,A,E,T built
+    class D,V,P planned
 ```
 
 <sub>Solid: built. Dashed: planned.</sub>
