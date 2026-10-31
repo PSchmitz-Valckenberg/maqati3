@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import ar from '../../../messages/ar.json';
+import de from '../../../messages/de.json';
+import en from '../../../messages/en.json';
 import {
   canRegister,
+  canTranscribe,
   errorKey,
   groupItems,
   loginResult,
@@ -105,5 +109,40 @@ describe('slugFrom', () => {
   it('is empty when nothing usable is left, so the field is never pre-filled with junk', () => {
     expect(slugFrom('')).toBe('');
     expect(slugFrom('!!!')).toBe('');
+  });
+});
+
+describe('what the dashboard says when a transcription is refused', () => {
+  /** The detail strings api/admin.py sends for the transcription route, each with the
+   * message key the page looks them up under. */
+  const refusals = [
+    ['transcription_not_configured', 'transcriptionNotConfigured'],
+    ['unknown_entry', 'unknownEntry'],
+    ['already_transcribed', 'alreadyTranscribed'],
+    ['already_queued', 'alreadyQueued'],
+  ];
+
+  it.each(refusals)('maps %s to its own message rather than the general one', (code, key) => {
+    expect(errorKey(code)).toBe(key);
+  });
+
+  it.each(refusals)('has words for %s in all three languages', (_code, key) => {
+    for (const messages of [en, de, ar]) {
+      const text = (messages.admin.error as Record<string, string>)[key];
+      expect(text ?? '').not.toBe('');
+    }
+  });
+
+  it('offers the button only where the server said it can transcribe', () => {
+    expect(canTranscribe({ transcription: false, entryId: 'ibn-baz-000042', busy: false })).toBe(
+      false,
+    );
+    expect(canTranscribe({ transcription: true, entryId: null, busy: false })).toBe(false);
+    expect(canTranscribe({ transcription: true, entryId: 'ibn-baz-000042', busy: true })).toBe(
+      false,
+    );
+    expect(canTranscribe({ transcription: true, entryId: 'ibn-baz-000042', busy: false })).toBe(
+      true,
+    );
   });
 });
