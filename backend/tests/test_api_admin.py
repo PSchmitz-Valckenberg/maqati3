@@ -32,6 +32,7 @@ from maqati3.api.desk import (
 )
 from maqati3.api.uploads import StagedUpload
 from maqati3.auth.identity import Identity, IdentityError
+from maqati3.transcription import AlreadyQueued, AlreadyTranscribed, UnknownEntry
 
 PUBLIC_URL = "https://archiv.example.org"
 SECRET = "x" * 48
@@ -138,6 +139,16 @@ class FakeDesk:
         self.calls.append(("add_scholar", scholar_id, name_ar, name_en, admin_email))
         self.scholars.add(scholar_id)
 
+    def request_transcription(self, entry_id: str, admin_email: str) -> int:
+        if entry_id == "nobody-000001":
+            raise UnknownEntry(entry_id)
+        if entry_id == "ibn-baz-000007":
+            raise AlreadyTranscribed(entry_id)
+        if entry_id == "ibn-baz-000008":
+            raise AlreadyQueued(entry_id)
+        self.calls.append(("transcribe", entry_id, admin_email))
+        return 17
+
 
 class FakeStore:
     def __init__(self, on_disk: dict[Path, Path] | None = None) -> None:
@@ -166,6 +177,7 @@ class Setup:
         with_admin: bool = True,
         store: FakeStore | None = None,
         secret: str = SECRET,
+        transcription: bool = False,
     ):
         self.provider = FakeProvider()
         self.admins = FakeAdmins(*(emails or ("yusuf@example.org",)))
@@ -178,6 +190,7 @@ class Setup:
                 desk=self.desk,
                 public_url=PUBLIC_URL,
                 session_secret=secret,
+                transcription=transcription,
             )
             if with_admin
             else None
@@ -196,8 +209,10 @@ def login(setup: Setup, email: str = "yusuf@example.org", **params: str) -> Resp
     )
 
 
-def signed_in(*emails: str, store: FakeStore | None = None) -> Setup:
-    setup = Setup(*emails, store=store)
+def signed_in(
+    *emails: str, store: FakeStore | None = None, transcription: bool = False
+) -> Setup:
+    setup = Setup(*emails, store=store, transcription=transcription)
     assert login(setup).status_code == 303
     return setup
 
@@ -224,7 +239,11 @@ def test_an_admin_on_the_list_is_signed_in_and_sent_on() -> None:
     assert response.headers["location"] == "/en/admin"
     me = setup.client.get("/api/v1/admin/me")
     assert me.status_code == 200
-    assert me.json() == {"email": "yusuf@example.org", "name": "Yusuf"}
+    assert me.json() == {
+        "email": "yusuf@example.org",
+        "name": "Yusuf",
+        "transcription": False,
+    }
 
 
 def test_the_page_the_admin_came_from_is_where_they_land() -> None:
@@ -687,3 +706,88 @@ def test_the_public_site_sets_no_cookie_and_needs_no_session() -> None:
 
     assert response.status_code == 200
     assert "set-cookie" not in response.headers
+
+
+# ------------------------------------------------------------------ transcription
+
+
+TRANSCRIBE = "/api/v1/admin/entries/ibn-baz-000042/transcribe"
+
+
+def test_transcription_is_not_offered_at_all_without_a_provider() -> None:
+    # Fail closed, like the dashboard itself: a button that spends money is not served
+    # by a server that has no key to spend it with.
+    setup = signed_in()
+
+    response = setup.client.post(TRANSCRIBE, headers=CSRF)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "transcription_not_configured"
+    assert setup.desk.calls == []
+
+
+def test_transcription_cannot_be_asked_for_by_a_stranger() -> None:
+    setup = Setup(transcription=True)
+
+    response = setup.client.post(TRANSCRIBE, headers=CSRF)
+
+    assert response.status_code == 401
+    assert setup.desk.calls == []
+
+
+def test_transcription_cannot_be_triggered_from_another_site() -> None:
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(TRANSCRIBE)
+
+    assert response.status_code == 403
+    assert setup.desk.calls == []
+
+
+def test_an_entry_that_is_not_there_cannot_be_transcribed() -> None:
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(
+        "/api/v1/admin/entries/nobody-000001/transcribe", headers=CSRF
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "unknown_entry"
+
+
+def test_an_entry_that_already_has_a_transcript_is_not_transcribed_again() -> None:
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(
+        "/api/v1/admin/entries/ibn-baz-000007/transcribe", headers=CSRF
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "already_transcribed"
+
+
+def test_a_second_click_while_a_run_is_queued_is_a_conflict() -> None:
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(
+        "/api/v1/admin/entries/ibn-baz-000008/transcribe", headers=CSRF
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "already_queued"
+
+
+def test_asking_for_a_transcription_queues_it_for_the_admin_who_asked() -> None:
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(TRANSCRIBE, headers=CSRF)
+
+    assert response.status_code == 202
+    assert response.json() == {"job_id": 17}
+    assert setup.desk.calls == [("transcribe", "ibn-baz-000042", "yusuf@example.org")]
+
+
+def test_the_dashboard_is_told_whether_transcription_is_available() -> None:
+    setup = signed_in(transcription=True)
+
+    assert setup.client.get("/api/v1/admin/me").json()["transcription"] is True
