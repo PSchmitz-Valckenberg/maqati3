@@ -44,6 +44,10 @@ function subscribeToHash(onChange: () => void): () => void {
   return () => window.removeEventListener('hashchange', onChange);
 }
 
+/** Errors worth a retry button: the file is fine, the moment was not. `too_many_attempts`
+ * is in here because the only thing standing in the way is the wait the message asks for. */
+const RETRYABLE = ['network', 'http_502', 'http_503', 'http_504', 'too_many_attempts'];
+
 function errorCode(error: unknown): string {
   return error instanceof UploadError ? error.code : 'network';
 }
@@ -355,7 +359,7 @@ function FileRow({
       {row.error && (
         <div className="flex items-center gap-3 text-sm text-red-700 dark:text-red-300">
           <span>{t.has(`error.${row.error}`) ? t(`error.${row.error}`) : t('error.other', { code: row.error })}</span>
-          {row.phase === 'failed' && ['network', 'http_502', 'http_503', 'http_504'].includes(row.error) && (
+          {row.phase === 'failed' && RETRYABLE.includes(row.error) && (
             <button type="button" onClick={onRetry} className="underline">
               {t('retry')}
             </button>

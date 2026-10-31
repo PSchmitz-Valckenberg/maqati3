@@ -46,6 +46,7 @@
       "no_readable_audio": "This file has no sound that could be read. Is it a photo or a screen recording?",
       "upload_too_large": "This file is too large.",
       "upload_key_required": "The upload link is not valid any more. Please ask the admin for the current link.",
+      "too_many_attempts": "Too many tries with a wrong upload link from this connection. Please wait about ten minutes and try again, and ask the admin whether your link is still the current one.",
       "network": "The connection was interrupted.",
       "not_awaiting_decision": "This file was already sent.",
       "other": "Something went wrong ({code})."

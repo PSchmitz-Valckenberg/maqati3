@@ -46,6 +46,7 @@
       "no_readable_audio": "In dieser Datei ist kein lesbarer Ton. Ist es ein Foto oder eine Bildschirmaufnahme?",
       "upload_too_large": "Diese Datei ist zu groß.",
       "upload_key_required": "Der Upload-Link gilt nicht mehr. Bitte frag den Admin nach dem aktuellen Link.",
+      "too_many_attempts": "Zu viele Versuche mit einem falschen Upload-Link von diesem Anschluss. Bitte warte etwa zehn Minuten und versuch es noch einmal, und frag den Admin, ob dein Link noch der aktuelle ist.",
       "network": "Die Verbindung wurde unterbrochen.",
       "not_awaiting_decision": "Diese Datei wurde schon gesendet.",
       "other": "Etwas ist schiefgegangen ({code})."
