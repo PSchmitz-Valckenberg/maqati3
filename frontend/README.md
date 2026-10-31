@@ -18,7 +18,7 @@ The frontend will be available at [http://localhost:3000](http://localhost:3000)
 
 In development, Next.js proxies API requests to the backend:
 
-- Configure `API_ORIGIN` in your environment (defaults to `http://localhost:8000`).
+- Configure `API_ORIGIN` in your environment (defaults to `http://127.0.0.1:8000`).
 - **Dev proxy payload limit:** The local development proxy enforces a **10 MB payload limit** on request bodies (e.g. file uploads). For larger uploads in development or production setups, see [docs/BETRIEB.md](../docs/BETRIEB.md) (or [docs/BETRIEB.en.md](../docs/BETRIEB.en.md)).
 
 ## Project Structure & Localization
