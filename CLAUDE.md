@@ -37,7 +37,8 @@ right one, otherwise the block only slows a guesser down. The client is the last
 `X-Forwarded-For` entry, honoured only with `TRUST_FORWARDED_FOR=true` (set in
 `deploy/compose.yml`, where only Caddy can reach the API); memory is capped and evicts the
 client with the fewest failures first. **Not on the server yet**, like everything since the
-upload. The upload page has no text for the 429 yet.
+upload. The upload page says what the 429 means in all three languages and offers the file
+again, since the only thing in the way is the wait.
 
 The design documents in `docs/` now exist in English for `PIPELINE`, `BETRIEB`, `COSTS` and
 `RISKS` (`*.en.md`, next to the German originals, which stay authoritative).
@@ -155,10 +156,17 @@ Three reasons `excluded` goes all the way rather than stopping at the index:
 Exclusion is inherited: a sub-topic of an excluded topic is excluded, and so is an
 entry whose topic is excluded, whatever the entry's own fields say.
 
-`segment_citable` in `0001_init.sql` already enforces this for retrieval. **The library
-side is not built yet** — `GET /api/v1/topics`, `/entries/{id}` and `/transcript`
-currently serve excluded topics like any other. That gate is Phase 1 work, and it
-belongs in the repository view, not in the route handlers.
+**The gate is built** (2026-10-31, migration `0006`). Inheritance is a recursive question,
+so it is asked in exactly one place: the view `topic_excluded`, which lists every topic
+that is excluded by its own `content_class` or by inheriting one. `PgLibraryRepository`
+reads it in every query, so `GET /api/v1/topics` drops an excluded topic and everything
+beneath it, and an excluded entry comes back as None — which the route turns into the same
+404 a missing id gets. This is the one gate the routes do *not* re-check: there is no field
+on the row they could gate on, and adding one would mean putting the lock in a reply.
+
+`segment_citable` now reads the same view. Its own condition in `0001_init.sql` asked only
+about the entry's own topic, which is right for a top-level topic and wrong for every
+sub-topic under it; `0006` replaces the view in place.
 
 *Which* topic gets which class stays a human decision — see below.
 
