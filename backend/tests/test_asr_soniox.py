@@ -15,9 +15,9 @@ from pathlib import Path
 
 import httpx
 import pytest
-from maqati3.asr.soniox import SonioxTranscriber
 
 from maqati3.asr import AsrError, AsrNotConfigured
+from maqati3.asr.soniox import SonioxTranscriber
 from maqati3.domain import Lang
 
 KEY = "sk-test-key"

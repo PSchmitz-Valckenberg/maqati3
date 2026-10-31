@@ -18,12 +18,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from maqati3.worker import Skipped, Stored, work_once
 
 from maqati3.asr import AsrError, AsrLine, AsrTranscript
 from maqati3.db.queue import Dead, Retry
 from maqati3.domain import Lang
 from maqati3.transcription import AlreadyTranscribed, EmptyTranscript
+from maqati3.worker import Skipped, Stored, work_once
 
 REPO_MIGRATIONS = Path(__file__).resolve().parents[2] / "db" / "migrations"
 SCHEMA = "maqati3_workertest"
