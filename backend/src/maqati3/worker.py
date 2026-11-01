@@ -36,6 +36,13 @@ from maqati3.dedup.fingerprint import UnreadableMedia
 from maqati3.domain import Lang
 from maqati3.media import prepare_for_asr
 from maqati3.transcription import JOB_KIND, AlreadyTranscribed, EmptyTranscript, Transcripts
+from maqati3.translate import TranslationError, Translator
+from maqati3.translation import (
+    TRANSLATE_JOB_KIND,
+    AlreadyTranslated,
+    NothingToTranslate,
+    Translations,
+)
 
 log = logging.getLogger("maqati3")
 
@@ -76,6 +83,27 @@ Outcome = Stored | Skipped | Retry | Dead | LeaseLost
 #: Source file in, a file to send to the provider out. `media.prepare_for_asr` in
 #: production; a fake in tests, because ffmpeg is a genuinely external system.
 Prepare = Callable[[Path, Path], Path]
+
+
+def run_draft_translation(
+    payload: dict[str, Any], *, translator: Translator, translations: Translations
+) -> Stored | Skipped:
+    """One language of one entry. Raises for everything the queue should retry."""
+    entry_id = str(payload["entry_id"])
+    source = Lang(str(payload.get("source", Lang.AR.value)))
+    target = Lang(str(payload["target"]))
+    lines = translations.source_lines(entry_id, source)
+    if not lines:
+        # The transcript was removed, or never existed. Paying a model to look at
+        # nothing would be the only possible outcome of going on.
+        raise NothingToTranslate(f"{entry_id} has no {source.value}")
+    drafted = translator.translate(lines, source=source, target=target)
+    try:
+        stored = translations.store(entry_id, target, drafted)
+    except AlreadyTranslated:
+        log.info("%s draft for %s arrived too late; dropping it", target.value, entry_id)
+        return Skipped(entry_id=entry_id, reason="already_translated")
+    return Stored(entry_id=entry_id, lines=stored)
 
 
 def run_transcription(
@@ -135,25 +163,44 @@ def work_once(
     transcriber: Transcriber,
     transcripts: Transcripts,
     prepare: Prepare = prepare_for_asr,
+    translator: Translator | None = None,
+    translations: Translations | None = None,
     lease_seconds: int = LEASE_SECONDS,
 ) -> Outcome | None:
-    """Claim one transcription job and run it. None means the queue was empty."""
-    job = claim(executor, [JOB_KIND], lease_seconds)
+    """Claim one job and run it. None means there was nothing this worker can do.
+
+    Translation jobs are only claimed where a translator is configured: a worker must
+    not take work it cannot do and fail it five times on the way to the dead letter.
+    """
+    kinds = [JOB_KIND]
+    if translator is not None and translations is not None:
+        kinds.append(TRANSLATE_JOB_KIND)
+    job = claim(executor, kinds, lease_seconds)
     if job is None:
         return None
     try:
         with _Heartbeat(executor, job):
-            outcome = run_transcription(
-                job.payload,
-                transcriber=transcriber,
-                transcripts=transcripts,
-                prepare=prepare,
-            )
-    except (EmptyTranscript, UnreadableMedia) as exc:
+            # The two `is not None` checks are the same ones that put this kind in
+            # `kinds` above; repeated here because an assert vanishes under -O.
+            if job.kind == TRANSLATE_JOB_KIND and translator and translations:
+                outcome = run_draft_translation(
+                    job.payload, translator=translator, translations=translations
+                )
+            else:
+                outcome = run_transcription(
+                    job.payload,
+                    transcriber=transcriber,
+                    transcripts=transcripts,
+                    prepare=prepare,
+                )
+    except (EmptyTranscript, UnreadableMedia, NothingToTranslate) as exc:
         # Terminal: max_attempts=1 spends the whole budget on this one attempt, because
-        # the next one would send the same silence and be billed for it.
-        return fail(executor, job, f"nothing to transcribe: {exc}", max_attempts=1)
-    except (AsrError, MediaMissing) as exc:
+        # the next one would send the same silence, or the same nothing, and be billed.
+        return fail(executor, job, f"nothing to work on: {exc}", max_attempts=1)
+    except (AsrError, MediaMissing, TranslationError) as exc:
+        # Retried with backoff. A miscounted draft is in here on purpose: unlike
+        # silence, it is something the model may well get right on the next attempt,
+        # and a draft costs fractions of a cent.
         return fail(executor, job, f"{type(exc).__name__}: {exc}")
     if not complete(executor, job):
         # The lease was reaped and the job handed on. Our result is already stored, so
@@ -169,6 +216,8 @@ def work_forever(
     transcriber: Transcriber,
     transcripts: Transcripts,
     prepare: Prepare = prepare_for_asr,
+    translator: Translator | None = None,
+    translations: Translations | None = None,
     idle_sleep_s: float = IDLE_SLEEP_S,
     sleep: Callable[[float], None] = time.sleep,
     running: Callable[[], bool] = lambda: True,
@@ -185,6 +234,8 @@ def work_forever(
                 transcriber=transcriber,
                 transcripts=transcripts,
                 prepare=prepare,
+                translator=translator,
+                translations=translations,
             )
         except Exception:  # one bad job must not end the worker
             log.exception("a transcription job failed outside the queue's own handling")
@@ -202,6 +253,7 @@ __all__ = [
     "Outcome",
     "Skipped",
     "Stored",
+    "run_draft_translation",
     "run_transcription",
     "work_forever",
     "work_once",
