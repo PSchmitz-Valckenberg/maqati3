@@ -74,6 +74,9 @@ class DashboardItem:
     transcript_error: str | None = None
     #: How the English and German drafts are going, in the same five words.
     translations: TranscriptState = TranscriptState.NONE
+    #: Why the last draft run failed. Its own field, not the transcription's: showing
+    #: one failure's reason next to the other would send an admin after the wrong thing.
+    translations_error: str | None = None
 
 
 class Admins(Protocol):

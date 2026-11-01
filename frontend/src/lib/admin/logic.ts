@@ -27,6 +27,10 @@ export type Item = {
   transcript: TranscriptState;
   /** Why the last run failed, as the queue recorded it. */
   transcript_error: string | null;
+  /** How the English and German drafts are going, in the same five words. */
+  translations: TranscriptState;
+  /** Why the last draft run failed -- its own reason, not the transcription's. */
+  translations_error: string | null;
 };
 
 export function groupItems(items: Item[]): { waiting: Item[]; registered: Item[] } {
@@ -78,6 +82,30 @@ export function canTranscribe({
   );
 }
 
+/** Whether to offer the draft translations at all.
+ *
+ * There is nothing to translate until the Arabic transcript exists, so the button
+ * waits for it: the server answers 409 otherwise, and a button that can only fail is
+ * worse than none. A run that failed left nothing behind and may be asked for again. */
+export function canTranslate({
+  translation,
+  entryId,
+  transcript,
+  translations,
+}: {
+  translation: boolean;
+  entryId: string | null;
+  transcript: TranscriptState;
+  translations: TranscriptState;
+}): boolean {
+  return (
+    translation &&
+    entryId !== null &&
+    transcript === 'ready' &&
+    (translations === 'none' || translations === 'failed')
+  );
+}
+
 const ERROR_KEYS: Record<string, string> = {
   not_waiting: 'notWaiting',
   unknown_scholar: 'unknownScholar',
@@ -88,6 +116,9 @@ const ERROR_KEYS: Record<string, string> = {
   already_transcribed: 'alreadyTranscribed',
   already_queued: 'alreadyQueued',
   daily_limit_reached: 'dailyLimitReached',
+  translation_not_configured: 'translationNotConfigured',
+  nothing_to_translate: 'nothingToTranslate',
+  already_translated: 'alreadyTranslated',
   network: 'network',
 };
 

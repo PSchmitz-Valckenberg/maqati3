@@ -110,7 +110,7 @@ SELECT s.sha256, s.original_name, s.duration_ms, s.received_at, s.contributor,
        s.candidate_keys, s.entry_id, s.registered_by,
        sc.id, sc.name_ar, sc.name_en,
        j.state, j.last_error, el.state,
-       tj.state, tl.drafted
+       tj.state, tj.last_error, tl.drafted
   FROM submission s
   LEFT JOIN entry e ON e.id = s.entry_id
   LEFT JOIN scholar sc ON sc.id = e.scholar_id
@@ -121,7 +121,7 @@ SELECT s.sha256, s.original_name, s.duration_ms, s.received_at, s.contributor,
   ) j ON true
   LEFT JOIN entry_language el ON el.entry_id = s.entry_id AND el.lang = 'ar'
   LEFT JOIN LATERAL (
-       SELECT state FROM job
+       SELECT state, last_error FROM job
         WHERE kind = '{TRANSLATE_JOB_KIND}' AND payload->>'entry_id' = s.entry_id
         ORDER BY id DESC LIMIT 1
   ) tj ON true
@@ -261,8 +261,9 @@ class PgDesk:
                     ),
                     transcript_error=_text(row[12]),
                     translations=translation_state(
-                        int(str(row[15] or 0)), _text(row[14])
+                        int(str(row[16] or 0)), _text(row[14])
                     ),
+                    translations_error=_text(row[15]),
                 )
             )
         return items

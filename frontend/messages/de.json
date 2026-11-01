@@ -117,6 +117,14 @@
     "registeredBy": "registriert von {email}",
     "transcribe": "Transkribieren",
     "transcribeHint": "Schickt die Aufnahme an den Transkriptionsdienst. Der Entwurf erscheint in ein paar Minuten hier zur Durchsicht.",
+    "translate": "Übersetzungen entwerfen",
+    "translateHint": "Entwirft Englisch und Deutsch Zeile für Zeile. Ein Mensch prüft jede Zeile, bevor etwas veröffentlicht wird.",
+    "drafts": {
+      "queued": "Entwurfsübersetzungen angefragt — warten auf den Worker.",
+      "running": "Wird übersetzt…",
+      "failed": "Die Entwurfsübersetzungen haben nicht geklappt: {reason}",
+      "ready": "Englischer und deutscher Entwurf liegen zur Durchsicht bereit."
+    },
     "transcript": {
       "queued": "Transkription angefragt — wartet auf den Worker.",
       "running": "Wird transkribiert…",
@@ -133,6 +141,9 @@
       "alreadyTranscribed": "Für diese Aufnahme gibt es schon ein Transkript, oder jemand arbeitet daran.",
       "alreadyQueued": "Für diese Aufnahme ist eine Transkription schon unterwegs.",
       "dailyLimitReached": "Das Transkriptions-Budget für heute ist aufgebraucht. Morgen geht es weiter, oder der Admin setzt die Grenze höher.",
+      "translationNotConfigured": "Auf diesem Server ist noch kein Übersetzungsmodell eingerichtet.",
+      "nothingToTranslate": "Es gibt noch kein arabisches Transkript zum Übersetzen.",
+      "alreadyTranslated": "Beide Sprachen haben schon einen Entwurf, oder jemand arbeitet daran.",
       "network": "Die Verbindung wurde unterbrochen.",
       "generic": "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
     },

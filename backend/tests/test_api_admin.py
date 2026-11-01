@@ -535,6 +535,7 @@ def test_the_dashboard_lists_what_waits_and_what_is_registered() -> None:
         "transcript": "none",
         "transcript_error": None,
         "translations": "none",
+        "translations_error": None,
     }
     assert registered["status"] == "registered"
     assert registered["entry"] == {

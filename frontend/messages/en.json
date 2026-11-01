@@ -117,6 +117,14 @@
     "registeredBy": "registered by {email}",
     "transcribe": "Transcribe",
     "transcribeHint": "Sends the recording to the transcription service. The draft appears here for review in a few minutes.",
+    "translate": "Draft translations",
+    "translateHint": "Drafts English and German line by line. A person checks every line before anything is published.",
+    "drafts": {
+      "queued": "Draft translations requested — waiting for a worker.",
+      "running": "Translating…",
+      "failed": "The draft translations did not work: {reason}",
+      "ready": "English and German drafts ready for review."
+    },
     "transcript": {
       "queued": "Transcription requested — waiting for a worker.",
       "running": "Transcribing…",
@@ -133,6 +141,9 @@
       "alreadyTranscribed": "This recording already has a transcript, or someone is working on one.",
       "alreadyQueued": "A transcription for this recording is already on its way.",
       "dailyLimitReached": "Today's transcription budget is spent. It starts again tomorrow, or the admin can raise the limit.",
+      "translationNotConfigured": "This server has no translation model set up yet.",
+      "nothingToTranslate": "There is no Arabic transcript yet to translate.",
+      "alreadyTranslated": "Both languages already have a draft, or someone is working on them.",
       "network": "The connection was interrupted.",
       "generic": "Something went wrong. Please try again."
     },

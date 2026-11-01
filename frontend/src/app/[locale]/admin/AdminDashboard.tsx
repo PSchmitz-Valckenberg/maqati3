@@ -12,12 +12,14 @@ import {
   mediaUrl,
   registerItem,
   requestTranscription,
+  requestTranslation,
   signOut,
   type Me,
 } from '@/lib/admin/api';
 import {
   canRegister,
   canTranscribe,
+  canTranslate,
   errorKey,
   groupItems,
   loginResult,
@@ -89,7 +91,9 @@ export default function AdminDashboard() {
 
   // A transcription takes minutes, and the state lives on the server. While one is on
   // its way the list refreshes itself, so nobody has to guess whether to press F5.
-  const inFlight = items.some((i) => i.transcript === 'queued' || i.transcript === 'running');
+  const inFlight = items.some((i) =>
+    [i.transcript, i.translations].some((s) => s === 'queued' || s === 'running'),
+  );
   useEffect(() => {
     if (!inFlight) return;
     const timer = setInterval(() => void reload().catch(() => {}), REFRESH_MS);
@@ -149,6 +153,7 @@ export default function AdminDashboard() {
               key={item.sha256}
               item={item}
               transcription={view.me.transcription}
+              translation={view.me.translation}
               onChanged={reload}
             />
           ))}
@@ -401,10 +406,12 @@ function NewScholar({
 function RegisteredCard({
   item,
   transcription,
+  translation,
   onChanged,
 }: {
   item: Item;
   transcription: boolean;
+  translation: boolean;
   onChanged: () => Promise<void>;
 }) {
   const t = useTranslations('admin');
@@ -414,14 +421,14 @@ function RegisteredCard({
   const [error, setError] = useState<string | null>(null);
   const entryId = item.entry?.entry_id ?? null;
 
-  async function transcribe() {
+  // The state comes from the server, not from the click: it is the queue that knows
+  // whether a run is waiting, running or already finished.
+  async function ask(request: (id: string) => Promise<unknown>) {
     if (entryId === null) return;
     setBusy(true);
     setError(null);
     try {
-      await requestTranscription(entryId);
-      // The state comes from the server, not from this click: it is the queue that
-      // knows whether the run is waiting, running or already finished.
+      await request(entryId);
       await onChanged();
     } catch (problem: unknown) {
       setError(codeOf(problem));
@@ -460,10 +467,46 @@ function RegisteredCard({
       )}
       {canTranscribe({ transcription, entryId, transcript: item.transcript }) && (
         <div className="space-y-1">
-          <button type="button" className={SECONDARY} disabled={busy} onClick={transcribe}>
+          <button
+            type="button"
+            className={SECONDARY}
+            disabled={busy}
+            onClick={() => void ask(requestTranscription)}
+          >
             {busy ? t('working') : t('transcribe')}
           </button>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('transcribeHint')}</p>
+        </div>
+      )}
+      {item.translations !== 'none' && (
+        <p
+          className={
+            item.translations === 'failed'
+              ? 'text-sm text-red-700 dark:text-red-300'
+              : 'text-sm text-neutral-600 dark:text-neutral-400'
+          }
+        >
+          {item.translations === 'failed'
+            ? t('drafts.failed', { reason: item.translations_error ?? '' })
+            : t(`drafts.${item.translations}`)}
+        </p>
+      )}
+      {canTranslate({
+        translation,
+        entryId,
+        transcript: item.transcript,
+        translations: item.translations,
+      }) && (
+        <div className="space-y-1">
+          <button
+            type="button"
+            className={SECONDARY}
+            disabled={busy}
+            onClick={() => void ask(requestTranslation)}
+          >
+            {busy ? t('working') : t('translate')}
+          </button>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('translateHint')}</p>
         </div>
       )}
       {error && (

@@ -186,6 +186,7 @@ class DashboardItemOut(BaseModel):
     transcript: TranscriptState = TranscriptState.NONE
     transcript_error: str | None = None
     translations: TranscriptState = TranscriptState.NONE
+    translations_error: str | None = None
 
     @classmethod
     def of(cls, item: DashboardItem) -> DashboardItemOut:
@@ -214,6 +215,7 @@ class DashboardItemOut(BaseModel):
             transcript=item.transcript,
             transcript_error=item.transcript_error,
             translations=item.translations,
+            translations_error=item.translations_error,
         )
 
 

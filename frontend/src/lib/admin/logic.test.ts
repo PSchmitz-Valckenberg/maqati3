@@ -29,6 +29,7 @@ function item(overrides: Partial<Item> = {}): Item {
     transcript: 'none',
     transcript_error: null,
     translations: 'none',
+    translations_error: null,
     ...overrides,
   };
 }
