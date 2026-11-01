@@ -8,6 +8,10 @@
 
 export type Scholar = { id: string; name_ar: string; name_en: string };
 
+/** How an entry's transcription is going, as the server reads it off the queue and the
+ * Arabic review state. `ready` means a transcript exists, whoever wrote it. */
+export type TranscriptState = 'none' | 'queued' | 'running' | 'failed' | 'ready';
+
 /** What `/api/v1/admin/submissions` says about one upload. */
 export type Item = {
   sha256: string;
@@ -20,6 +24,9 @@ export type Item = {
   status: 'waiting' | 'registered';
   entry: { entry_id: string; scholar: Scholar } | null;
   registered_by: string | null;
+  transcript: TranscriptState;
+  /** Why the last run failed, as the queue recorded it. */
+  transcript_error: string | null;
 };
 
 export function groupItems(items: Item[]): { waiting: Item[]; registered: Item[] } {
@@ -56,13 +63,19 @@ export function canRegister(scholarId: string, busy: boolean): boolean {
 export function canTranscribe({
   transcription,
   entryId,
-  busy,
+  transcript,
 }: {
   transcription: boolean;
   entryId: string | null;
-  busy: boolean;
+  transcript: TranscriptState;
 }): boolean {
-  return transcription && entryId !== null && !busy;
+  // `queued`, `running` and `ready` all answer 409 on the server. A run that failed
+  // left nothing behind, so that one may be asked for again.
+  return (
+    transcription &&
+    entryId !== null &&
+    (transcript === 'none' || transcript === 'failed')
+  );
 }
 
 const ERROR_KEYS: Record<string, string> = {

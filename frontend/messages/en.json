@@ -117,7 +117,12 @@
     "registeredBy": "registered by {email}",
     "transcribe": "Transcribe",
     "transcribeHint": "Sends the recording to the transcription service. The draft appears here for review in a few minutes.",
-    "transcribeQueued": "Transcription requested.",
+    "transcript": {
+      "queued": "Transcription requested — waiting for a worker.",
+      "running": "Transcribing…",
+      "failed": "The transcription did not work: {reason}",
+      "ready": "Arabic draft ready for review."
+    },
     "error": {
       "notWaiting": "Someone has already dealt with this one. The list was reloaded.",
       "unknownScholar": "That scholar is not in the archive. Please choose again.",

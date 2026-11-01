@@ -117,7 +117,12 @@
     "registeredBy": "registriert von {email}",
     "transcribe": "Transkribieren",
     "transcribeHint": "Schickt die Aufnahme an den Transkriptionsdienst. Der Entwurf erscheint in ein paar Minuten hier zur Durchsicht.",
-    "transcribeQueued": "Transkription angefragt.",
+    "transcript": {
+      "queued": "Transkription angefragt — wartet auf den Worker.",
+      "running": "Wird transkribiert…",
+      "failed": "Die Transkription hat nicht geklappt: {reason}",
+      "ready": "Arabischer Entwurf liegt zur Durchsicht bereit."
+    },
     "error": {
       "notWaiting": "Das hat inzwischen schon jemand bearbeitet. Die Liste wurde neu geladen.",
       "unknownScholar": "Diesen Gelehrten gibt es im Archiv nicht. Bitte neu auswählen.",

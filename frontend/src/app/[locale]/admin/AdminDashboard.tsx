@@ -49,6 +49,9 @@ const BUTTON =
   'rounded-md px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50';
 const PRIMARY = `${BUTTON} bg-emerald-700 text-white`;
 const SECONDARY = `${BUTTON} border border-neutral-400 bg-transparent`;
+/** How often the list refreshes itself while a transcription is queued or running. */
+const REFRESH_MS = 10_000;
+
 const FIELD =
   'w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700';
 
@@ -83,6 +86,15 @@ export default function AdminDashboard() {
         else setView({ kind: 'failed', code });
       });
   }, [reload]);
+
+  // A transcription takes minutes, and the state lives on the server. While one is on
+  // its way the list refreshes itself, so nobody has to guess whether to press F5.
+  const inFlight = items.some((i) => i.transcript === 'queued' || i.transcript === 'running');
+  useEffect(() => {
+    if (!inFlight) return;
+    const timer = setInterval(() => void reload().catch(() => {}), REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [inFlight, reload]);
 
   if (view.kind === 'loading') return <p>{t('loading')}</p>;
   if (view.kind === 'notConfigured') return <Notice>{t('notConfigured')}</Notice>;
@@ -137,6 +149,7 @@ export default function AdminDashboard() {
               key={item.sha256}
               item={item}
               transcription={view.me.transcription}
+              onChanged={reload}
             />
           ))}
         </ul>
@@ -385,12 +398,19 @@ function NewScholar({
   );
 }
 
-function RegisteredCard({ item, transcription }: { item: Item; transcription: boolean }) {
+function RegisteredCard({
+  item,
+  transcription,
+  onChanged,
+}: {
+  item: Item;
+  transcription: boolean;
+  onChanged: () => Promise<void>;
+}) {
   const t = useTranslations('admin');
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const entryId = item.entry?.entry_id ?? null;
 
@@ -400,7 +420,9 @@ function RegisteredCard({ item, transcription }: { item: Item; transcription: bo
     setError(null);
     try {
       await requestTranscription(entryId);
-      setQueued(true);
+      // The state comes from the server, not from this click: it is the queue that
+      // knows whether the run is waiting, running or already finished.
+      await onChanged();
     } catch (problem: unknown) {
       setError(codeOf(problem));
     } finally {
@@ -423,17 +445,26 @@ function RegisteredCard({ item, transcription }: { item: Item; transcription: bo
         {open ? '▲' : '▶'} {t('play')}
       </button>
       {open && <Player sha256={item.sha256} />}
-      {queued ? (
-        <p className="text-sm text-emerald-800 dark:text-emerald-300">{t('transcribeQueued')}</p>
-      ) : (
-        canTranscribe({ transcription, entryId, busy: false }) && (
-          <div className="space-y-1">
-            <button type="button" className={SECONDARY} disabled={busy} onClick={transcribe}>
-              {busy ? t('working') : t('transcribe')}
-            </button>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('transcribeHint')}</p>
-          </div>
-        )
+      {item.transcript !== 'none' && (
+        <p
+          className={
+            item.transcript === 'failed'
+              ? 'text-sm text-red-700 dark:text-red-300'
+              : 'text-sm text-neutral-600 dark:text-neutral-400'
+          }
+        >
+          {item.transcript === 'failed'
+            ? t('transcript.failed', { reason: item.transcript_error ?? '' })
+            : t(`transcript.${item.transcript}`)}
+        </p>
+      )}
+      {canTranscribe({ transcription, entryId, transcript: item.transcript }) && (
+        <div className="space-y-1">
+          <button type="button" className={SECONDARY} disabled={busy} onClick={transcribe}>
+            {busy ? t('working') : t('transcribe')}
+          </button>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('transcribeHint')}</p>
+        </div>
       )}
       {error && (
         <p className="text-sm text-red-700 dark:text-red-300">{t(`error.${errorKey(error)}`)}</p>
