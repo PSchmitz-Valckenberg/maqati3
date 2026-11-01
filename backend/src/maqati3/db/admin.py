@@ -30,6 +30,7 @@ from maqati3.transcription import (
     AlreadyQueued,
     AlreadyTranscribed,
     UnknownEntry,
+    transcript_state,
 )
 
 # ------------------------------------------------------------------ the admin list
@@ -88,13 +89,23 @@ class PgAdmins:
 
 # ------------------------------------------------------------------ the desk
 
-_ITEMS = """
+# The last two joins are what the dashboard shows about transcription: the newest run
+# for this entry, and whether there is an Arabic transcript at all. Neither is stored
+# on the submission -- a copy would be a second place that can disagree with the queue.
+_ITEMS = f"""
 SELECT s.sha256, s.original_name, s.duration_ms, s.received_at, s.contributor,
        s.candidate_keys, s.entry_id, s.registered_by,
-       sc.id, sc.name_ar, sc.name_en
+       sc.id, sc.name_ar, sc.name_en,
+       j.state, j.last_error, el.state
   FROM submission s
   LEFT JOIN entry e ON e.id = s.entry_id
   LEFT JOIN scholar sc ON sc.id = e.scholar_id
+  LEFT JOIN LATERAL (
+       SELECT state, last_error FROM job
+        WHERE kind = '{JOB_KIND}' AND payload->>'entry_id' = s.entry_id
+        ORDER BY id DESC LIMIT 1
+  ) j ON true
+  LEFT JOIN entry_language el ON el.entry_id = s.entry_id AND el.lang = 'ar'
  WHERE s.state IN ('kept', 'registered')
  ORDER BY (s.state = 'registered'),
           CASE WHEN s.state = 'kept' THEN s.received_at END ASC,
@@ -195,6 +206,11 @@ class PgDesk:
                         else None
                     ),
                     registered_by=_text(row[7]),
+                    transcript=transcript_state(
+                        ReviewState(str(row[13])) if row[13] is not None else None,
+                        _text(row[11]),
+                    ),
+                    transcript_error=_text(row[12]),
                 )
             )
         return items

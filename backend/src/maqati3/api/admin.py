@@ -39,7 +39,12 @@ from maqati3.api.desk import (
 from maqati3.api.routes import PREVIEW_TYPES, Store
 from maqati3.api.schemas import ScholarOut
 from maqati3.auth.identity import IdentityError, IdentityProvider
-from maqati3.transcription import AlreadyQueued, AlreadyTranscribed, UnknownEntry
+from maqati3.transcription import (
+    AlreadyQueued,
+    AlreadyTranscribed,
+    TranscriptState,
+    UnknownEntry,
+)
 
 log = logging.getLogger("maqati3")
 
@@ -169,6 +174,8 @@ class DashboardItemOut(BaseModel):
     status: Literal["waiting", "registered"]
     entry: RegisteredOut | None
     registered_by: str | None
+    transcript: TranscriptState = TranscriptState.NONE
+    transcript_error: str | None = None
 
     @classmethod
     def of(cls, item: DashboardItem) -> DashboardItemOut:
@@ -194,6 +201,8 @@ class DashboardItemOut(BaseModel):
                 )
             ),
             registered_by=item.registered_by,
+            transcript=item.transcript,
+            transcript_error=item.transcript_error,
         )
 
 

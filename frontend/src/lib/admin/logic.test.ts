@@ -25,6 +25,8 @@ function item(overrides: Partial<Item> = {}): Item {
     status: 'waiting',
     entry: null,
     registered_by: null,
+    transcript: 'none',
+    transcript_error: null,
     ...overrides,
   };
 }
@@ -134,15 +136,28 @@ describe('what the dashboard says when a transcription is refused', () => {
   });
 
   it('offers the button only where the server said it can transcribe', () => {
-    expect(canTranscribe({ transcription: false, entryId: 'ibn-baz-000042', busy: false })).toBe(
-      false,
-    );
-    expect(canTranscribe({ transcription: true, entryId: null, busy: false })).toBe(false);
-    expect(canTranscribe({ transcription: true, entryId: 'ibn-baz-000042', busy: true })).toBe(
-      false,
-    );
-    expect(canTranscribe({ transcription: true, entryId: 'ibn-baz-000042', busy: false })).toBe(
-      true,
-    );
+    const asked = { transcription: true, entryId: 'ibn-baz-000042', transcript: 'none' } as const;
+    expect(canTranscribe({ ...asked, transcription: false })).toBe(false);
+    expect(canTranscribe({ ...asked, entryId: null })).toBe(false);
+    expect(canTranscribe(asked)).toBe(true);
+  });
+
+  it('does not offer a second run while one is on its way or done', () => {
+    // The server answers 409 for these. A button that can only fail is worse than none.
+    const base = { transcription: true, entryId: 'ibn-baz-000042' } as const;
+    expect(canTranscribe({ ...base, transcript: 'queued' })).toBe(false);
+    expect(canTranscribe({ ...base, transcript: 'running' })).toBe(false);
+    expect(canTranscribe({ ...base, transcript: 'ready' })).toBe(false);
+    // A run that failed left nothing behind, so asking again is allowed.
+    expect(canTranscribe({ ...base, transcript: 'failed' })).toBe(true);
+  });
+
+  it('has words for every transcription state in all three languages', () => {
+    for (const state of ['queued', 'running', 'failed', 'ready'] as const) {
+      for (const messages of [en, de, ar]) {
+        const text = (messages.admin.transcript as Record<string, string>)[state];
+        expect(text ?? '').not.toBe('');
+      }
+    }
   });
 });

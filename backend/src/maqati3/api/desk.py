@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from maqati3.transcription import TranscriptState
+
 
 class NotWaiting(LookupError):
     """The upload is not waiting for an admin: unknown, undecided, or already registered."""
@@ -64,6 +66,12 @@ class DashboardItem:
     kept_despite: list[str]
     entry: RegisteredAs | None
     registered_by: str | None
+    #: How this entry's transcription is going. Read off the queue and the Arabic
+    #: review state every time; never stored, so it cannot disagree with either.
+    transcript: TranscriptState = TranscriptState.NONE
+    #: Why the last run failed, as the queue recorded it. "It did not work" is not
+    #: enough to decide whether to ask again or to replace the file.
+    transcript_error: str | None = None
 
 
 class Admins(Protocol):
