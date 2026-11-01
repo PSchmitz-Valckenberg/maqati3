@@ -39,6 +39,7 @@ from maqati3.transcription import (
     TranscriptState,
     UnknownEntry,
 )
+from maqati3.translation import AlreadyTranslated, NothingToTranslate
 
 PUBLIC_URL = "https://archiv.example.org"
 SECRET = "x" * 48
@@ -157,6 +158,16 @@ class FakeDesk:
         self.calls.append(("transcribe", entry_id, admin_email))
         return 17
 
+    def request_translation(self, entry_id: str, admin_email: str) -> list[int]:
+        if entry_id == "nobody-000001":
+            raise UnknownEntry(entry_id)
+        if entry_id == "ibn-baz-000007":
+            raise NothingToTranslate(entry_id)
+        if entry_id == "ibn-baz-000008":
+            raise AlreadyTranslated(entry_id)
+        self.calls.append(("translate", entry_id, admin_email))
+        return [18, 19]
+
 
 class FakeStore:
     def __init__(self, on_disk: dict[Path, Path] | None = None) -> None:
@@ -186,6 +197,7 @@ class Setup:
         store: FakeStore | None = None,
         secret: str = SECRET,
         transcription: bool = False,
+        translation: bool = False,
     ):
         self.provider = FakeProvider()
         self.admins = FakeAdmins(*(emails or ("yusuf@example.org",)))
@@ -199,6 +211,7 @@ class Setup:
                 public_url=PUBLIC_URL,
                 session_secret=secret,
                 transcription=transcription,
+                translation=translation,
             )
             if with_admin
             else None
@@ -218,9 +231,12 @@ def login(setup: Setup, email: str = "yusuf@example.org", **params: str) -> Resp
 
 
 def signed_in(
-    *emails: str, store: FakeStore | None = None, transcription: bool = False
+    *emails: str,
+    store: FakeStore | None = None,
+    transcription: bool = False,
+    translation: bool = False,
 ) -> Setup:
-    setup = Setup(*emails, store=store, transcription=transcription)
+    setup = Setup(*emails, store=store, transcription=transcription, translation=translation)
     assert login(setup).status_code == 303
     return setup
 
@@ -251,6 +267,7 @@ def test_an_admin_on_the_list_is_signed_in_and_sent_on() -> None:
         "email": "yusuf@example.org",
         "name": "Yusuf",
         "transcription": False,
+        "translation": False,
     }
 
 
@@ -517,6 +534,7 @@ def test_the_dashboard_lists_what_waits_and_what_is_registered() -> None:
         "registered_by": None,
         "transcript": "none",
         "transcript_error": None,
+        "translations": "none",
     }
     assert registered["status"] == "registered"
     assert registered["entry"] == {
@@ -837,3 +855,58 @@ def test_nothing_more_is_sent_once_the_days_budget_is_spent() -> None:
     assert response.status_code == 429
     assert response.json()["detail"] == "daily_limit_reached"
     assert setup.desk.calls == []
+
+
+# ------------------------------------------------------------------ draft translations
+
+
+TRANSLATE = "/api/v1/admin/entries/ibn-baz-000042/translate"
+
+
+def test_drafting_translations_is_not_offered_without_a_model() -> None:
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(TRANSLATE, headers=CSRF)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "translation_not_configured"
+    assert setup.desk.calls == []
+
+
+def test_drafting_translations_cannot_be_triggered_from_another_site() -> None:
+    setup = signed_in(translation=True)
+
+    assert setup.client.post(TRANSLATE).status_code == 403
+    assert setup.desk.calls == []
+
+
+def test_an_entry_with_no_arabic_has_nothing_to_translate() -> None:
+    setup = signed_in(translation=True)
+
+    response = setup.client.post(
+        "/api/v1/admin/entries/ibn-baz-000007/translate", headers=CSRF
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "nothing_to_translate"
+
+
+def test_an_entry_whose_languages_are_all_drafted_is_refused() -> None:
+    setup = signed_in(translation=True)
+
+    response = setup.client.post(
+        "/api/v1/admin/entries/ibn-baz-000008/translate", headers=CSRF
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "already_translated"
+
+
+def test_asking_for_drafts_queues_one_job_per_language() -> None:
+    setup = signed_in(translation=True)
+
+    response = setup.client.post(TRANSLATE, headers=CSRF)
+
+    assert response.status_code == 202
+    assert response.json() == {"job_ids": [18, 19]}
+    assert setup.desk.calls == [("translate", "ibn-baz-000042", "yusuf@example.org")]
