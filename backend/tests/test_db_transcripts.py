@@ -30,6 +30,7 @@ from maqati3.transcription import (
     JOB_KIND,
     AlreadyQueued,
     AlreadyTranscribed,
+    DailyLimitReached,
     EmptyTranscript,
     TranscriptState,
     UnknownEntry,
@@ -344,3 +345,70 @@ def test_integration_a_stored_transcript_is_what_the_dashboard_reports() -> None
 
         assert item.transcript is TranscriptState.READY
         assert item.transcript_error is None
+
+
+# ------------------------------------------------------- the daily spending cap
+#
+# Every registered recording costs money to transcribe. A bug, or twenty uploads
+# registered in one evening, must not become a surprise bill. The cap is counted in
+# audio seconds, because that is what the provider actually charges for.
+
+#: `registered_entry` makes an 80-second recording (80_333 ms rounded).
+EIGHTY_SECONDS = 80
+
+
+@requires_database
+def test_integration_a_request_past_the_days_budget_is_refused_and_queues_nothing() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = registered_entry(executor)
+        desk = PgDesk(executor, daily_limit_seconds=EIGHTY_SECONDS - 1)
+
+        with pytest.raises(DailyLimitReached):
+            desk.request_transcription(entry_id, "yusuf@example.org")
+
+        assert jobs(connection) == []
+
+
+@requires_database
+def test_integration_the_budget_counts_what_was_asked_for_not_what_finished() -> None:
+    # A run that failed was still sent to the provider and still billed. Counting only
+    # the successful ones would let a failing recording be retried all day for free.
+    with migrated_schema() as (connection, executor):
+        first = registered_entry(executor, "aa" * 32)
+        second = registered_entry(executor, "bb" * 32)
+        desk = PgDesk(executor, daily_limit_seconds=EIGHTY_SECONDS + 10)
+        desk.request_transcription(first, "yusuf@example.org")
+        connection.execute("UPDATE job SET state = 'failed'")
+
+        with pytest.raises(DailyLimitReached):
+            desk.request_transcription(second, "yusuf@example.org")
+
+        assert len(jobs(connection)) == 1
+
+
+@requires_database
+def test_integration_yesterdays_runs_do_not_count_against_today() -> None:
+    with migrated_schema() as (connection, executor):
+        first = registered_entry(executor, "aa" * 32)
+        second = registered_entry(executor, "bb" * 32)
+        desk = PgDesk(executor, daily_limit_seconds=EIGHTY_SECONDS)
+        desk.request_transcription(first, "yusuf@example.org")
+        connection.execute("UPDATE job SET created_at = now() - interval '2 days'")
+
+        desk.request_transcription(second, "yusuf@example.org")
+
+        assert len(jobs(connection)) == 2
+
+
+@requires_database
+def test_integration_a_recording_that_exactly_fills_the_budget_still_goes_through() -> None:
+    # The cap is a limit, not a margin: refusing at exactly the configured number would
+    # make the setting mean something other than what it says.
+    with migrated_schema() as (connection, executor):
+        entry_id = registered_entry(executor)
+
+        PgDesk(executor, daily_limit_seconds=EIGHTY_SECONDS).request_transcription(
+            entry_id, "yusuf@example.org"
+        )
+
+        assert len(jobs(connection)) == 1
