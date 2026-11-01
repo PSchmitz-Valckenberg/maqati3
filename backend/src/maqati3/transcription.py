@@ -26,6 +26,12 @@ from maqati3.domain import ReviewState
 #: The `job.kind` of a transcription. One worker process claims these.
 JOB_KIND = "transcribe"
 
+#: Audio seconds that may be sent to the provider in one day, unless configured
+#: otherwise. Ten audio hours is about a dollar at Soniox's rate and far more than this
+#: archive produces in a good week -- the cap is there to stop a bug or an evening of
+#: bulk registrations, not to ration ordinary work.
+DEFAULT_DAILY_LIMIT_SECONDS = 10 * 3600
+
 
 class UnknownEntry(LookupError):
     """No entry with that id. Nothing is queued."""
@@ -42,6 +48,15 @@ class AlreadyTranscribed(ValueError):
 
 class AlreadyQueued(ValueError):
     """A run for this entry is queued or running. The second click buys nothing."""
+
+
+class DailyLimitReached(ValueError):
+    """Today's budget of audio is spent. Nothing is queued.
+
+    The cap is counted in audio seconds, because that is what the provider charges for,
+    and it counts everything *asked for* today rather than everything that succeeded: a
+    run that failed was still sent and still billed.
+    """
 
 
 class EmptyTranscript(ValueError):
@@ -105,9 +120,11 @@ class Transcripts(Protocol):
 
 
 __all__ = [
+    "DEFAULT_DAILY_LIMIT_SECONDS",
     "JOB_KIND",
     "AlreadyQueued",
     "AlreadyTranscribed",
+    "DailyLimitReached",
     "EmptyTranscript",
     "TranscriptState",
     "Transcripts",

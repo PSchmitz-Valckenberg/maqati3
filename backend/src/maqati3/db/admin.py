@@ -26,9 +26,11 @@ from maqati3.api.uploads import SUBMISSION_PREFIX, is_submission_key
 from maqati3.db.sql import Executor
 from maqati3.domain import Lang, ReviewState
 from maqati3.transcription import (
+    DEFAULT_DAILY_LIMIT_SECONDS,
     JOB_KIND,
     AlreadyQueued,
     AlreadyTranscribed,
+    DailyLimitReached,
     UnknownEntry,
     transcript_state,
 )
@@ -169,15 +171,34 @@ SELECT 1 FROM job
 """
 _ENQUEUE = "INSERT INTO job (kind, payload) VALUES (%s, %s::jsonb) RETURNING id"
 
+#: Audio seconds asked for today. Every job created since midnight counts, whatever
+#: became of it: a run that failed was still sent to the provider and still billed.
+_SPENT_TODAY = """
+SELECT coalesce(sum(e.duration_sec), 0)
+  FROM job j JOIN entry e ON e.id = j.payload->>'entry_id'
+ WHERE j.kind = %s AND j.created_at >= date_trunc('day', now())
+"""
+_ENTRY_SECONDS = "SELECT coalesce(duration_sec, 0) FROM entry WHERE id = %s"
+#: One lock for the whole budget, held to the end of the transaction. Without it two
+#: admins clicking at the same moment both read the same total and both get through,
+#: which is exactly the evening the cap exists for.
+_LOCK_BUDGET = "SELECT pg_advisory_xact_lock(hashtext('maqati3.transcription.budget'))"
+
 
 def _text(value: object) -> str | None:
     return None if value is None else str(value)
 
 
 class PgDesk:
-    def __init__(self, executor: Executor) -> None:
+    def __init__(
+        self,
+        executor: Executor,
+        *,
+        daily_limit_seconds: int = DEFAULT_DAILY_LIMIT_SECONDS,
+    ) -> None:
         self._executor = executor
         self._admins = PgAdmins(executor)
+        self._daily_limit_seconds = daily_limit_seconds
 
     def items(self) -> list[DashboardItem]:
         rows = self._executor.fetchall(_ITEMS)
@@ -253,6 +274,16 @@ class PgDesk:
             )
         return entry_id
 
+    def _check_budget(self, entry_id: str) -> None:
+        """Refuse before anything is queued if today's audio budget is spent."""
+        self._executor.fetchall(_LOCK_BUDGET)
+        spent = int(str(self._executor.fetchall(_SPENT_TODAY, (JOB_KIND,))[0][0]))
+        wanted = int(str(self._executor.fetchall(_ENTRY_SECONDS, (entry_id,))[0][0]))
+        if spent + wanted > self._daily_limit_seconds:
+            raise DailyLimitReached(
+                f"{spent + wanted}s asked for today, limit {self._daily_limit_seconds}s"
+            )
+
     def discard(self, sha256: str, admin_email: str) -> Path:
         with self._executor.transaction():
             rows = self._executor.fetchall(_DISCARD, (sha256,))
@@ -293,6 +324,7 @@ class PgDesk:
                 raise AlreadyTranscribed(entry_id)
             if self._executor.fetchall(_RUN_IN_FLIGHT, (JOB_KIND, entry_id)):
                 raise AlreadyQueued(entry_id)
+            self._check_budget(entry_id)
             payload = json.dumps({"entry_id": entry_id, "lang": lang})
             rows = self._executor.fetchall(_ENQUEUE, (JOB_KIND, payload))
             self._admins.log(admin_email, "transcribe", entry_id, {"lang": lang})

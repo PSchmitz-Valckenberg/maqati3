@@ -35,6 +35,7 @@ from maqati3.auth.identity import Identity, IdentityError
 from maqati3.transcription import (
     AlreadyQueued,
     AlreadyTranscribed,
+    DailyLimitReached,
     TranscriptState,
     UnknownEntry,
 )
@@ -151,6 +152,8 @@ class FakeDesk:
             raise AlreadyTranscribed(entry_id)
         if entry_id == "ibn-baz-000008":
             raise AlreadyQueued(entry_id)
+        if entry_id == "ibn-baz-000009":
+            raise DailyLimitReached(entry_id)
         self.calls.append(("transcribe", entry_id, admin_email))
         return 17
 
@@ -814,3 +817,16 @@ def test_the_dashboard_is_told_whether_transcription_is_available() -> None:
     setup = signed_in(transcription=True)
 
     assert setup.client.get("/api/v1/admin/me").json()["transcription"] is True
+
+
+def test_nothing_more_is_sent_once_the_days_budget_is_spent() -> None:
+    # 429, like the upload key limit: the answer is "not now", not "never".
+    setup = signed_in(transcription=True)
+
+    response = setup.client.post(
+        "/api/v1/admin/entries/ibn-baz-000009/transcribe", headers=CSRF
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "daily_limit_reached"
+    assert setup.desk.calls == []
