@@ -417,8 +417,15 @@ def test_a_tampered_session_cookie_is_not_a_session() -> None:
     setup = signed_in()
     cookie = setup.client.cookies.get("maqati3_admin")
     assert cookie is not None
+    tampered = cookie[:-4] + "AAAA"
 
-    setup.client.cookies.set("maqati3_admin", cookie[:-4] + "AAAA")
+    # Cleared first, then set: setting over a cookie the server sent leaves the
+    # original in the jar under its own domain, and the client then sends both. The
+    # test would still pass -- on the untouched cookie -- and would have stopped
+    # testing anything. The assertion below is what makes that impossible.
+    setup.client.cookies.clear()
+    setup.client.cookies.set("maqati3_admin", tampered)
+    assert setup.client.cookies.get("maqati3_admin") == tampered
 
     assert setup.client.get("/api/v1/admin/me").status_code == 401
 
