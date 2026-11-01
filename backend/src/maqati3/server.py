@@ -19,6 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from maqati3.api.admin import AdminConfig
 from maqati3.api.app import create_app
+from maqati3.api.ratelimit import DEFAULT_MAX_FAILURES, DEFAULT_WINDOW_S, FailureLimiter
 from maqati3.asr.soniox import DEFAULT_MODEL as SONIOX_MODEL
 from maqati3.auth.google import GoogleIdentityProvider
 from maqati3.db.admin import PgAdmins, PgDesk
@@ -72,6 +73,10 @@ class Settings(BaseSettings):
     #: keys sees the proxy's address for everyone; turned on without a proxy, anyone can
     #: dodge it by sending the header.
     trust_forwarded_for: bool = False
+    #: Wrong upload keys per client before the API stops looking at the key at all,
+    #: and the window they are counted in. Lower them if the link ever leaks.
+    upload_key_max_failures: int = DEFAULT_MAX_FAILURES
+    upload_key_window_minutes: int = int(DEFAULT_WINDOW_S // 60)
     staging_dir: Path = Path("/var/lib/maqati3/staging")
     max_upload_bytes: int = DEFAULT_MAX_BYTES
     fpcalc_path: str = "fpcalc"
@@ -178,6 +183,10 @@ def build_app(settings: Settings, *, connect_kwargs: Mapping[str, Any] | None = 
         lifespan=lifespan,
         upload_key=settings.upload_key,
         trust_forwarded_for=settings.trust_forwarded_for,
+        key_limiter=FailureLimiter(
+            max_failures=settings.upload_key_max_failures,
+            window_s=settings.upload_key_window_minutes * 60,
+        ),
         admin=admin_config(settings, executor),
     )
     app.state.store = store
