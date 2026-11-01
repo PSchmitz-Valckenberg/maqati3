@@ -24,6 +24,7 @@ from maqati3.api.desk import (
 )
 from maqati3.api.uploads import SUBMISSION_PREFIX, is_submission_key
 from maqati3.db.sql import Executor
+from maqati3.db.translations import PgTranslations
 from maqati3.domain import Lang, ReviewState
 from maqati3.transcription import (
     DEFAULT_DAILY_LIMIT_SECONDS,
@@ -34,6 +35,15 @@ from maqati3.transcription import (
     UnknownEntry,
     transcript_state,
 )
+from maqati3.translation import (
+    TARGET_LANGUAGES,
+    TRANSLATE_JOB_KIND,
+    AlreadyTranslated,
+    NothingToTranslate,
+)
+
+#: Every job kind that spends money. They share one daily budget.
+PAID_KINDS = [JOB_KIND, TRANSLATE_JOB_KIND]
 
 # ------------------------------------------------------------------ the admin list
 
@@ -171,14 +181,20 @@ SELECT 1 FROM job
 """
 _ENQUEUE = "INSERT INTO job (kind, payload) VALUES (%s, %s::jsonb) RETURNING id"
 
-#: Audio seconds asked for today. Every job created since midnight counts, whatever
-#: became of it: a run that failed was still sent to the provider and still billed.
+#: Audio seconds asked for today, across both kinds of paid work. Every job created
+#: since midnight counts, whatever became of it: a run that failed was still sent and
+#: still billed. One budget rather than two, because both spend money on the same
+#: recording and a second number would only be a second thing to bypass.
 _SPENT_TODAY = """
 SELECT coalesce(sum(e.duration_sec), 0)
   FROM job j JOIN entry e ON e.id = j.payload->>'entry_id'
- WHERE j.kind = %s AND j.created_at >= date_trunc('day', now())
+ WHERE j.kind = ANY(%s) AND j.created_at >= date_trunc('day', now())
 """
 _ENTRY_SECONDS = "SELECT coalesce(duration_sec, 0) FROM entry WHERE id = %s"
+_HAS_ARABIC = """
+SELECT 1 FROM segment s JOIN segment_text t ON t.segment_id = s.id
+ WHERE s.entry_id = %s AND t.lang = 'ar' LIMIT 1
+"""
 #: One lock for the whole budget, held to the end of the transaction. Without it two
 #: admins clicking at the same moment both read the same total and both get through,
 #: which is exactly the evening the cap exists for.
@@ -274,10 +290,46 @@ class PgDesk:
             )
         return entry_id
 
+    def request_translation(self, entry_id: str, admin_email: str) -> list[int]:
+        """Queue one draft translation per language that is still untouched.
+
+        One job per language, not one for both: a German failure must not redo the
+        English that already arrived, and a reviewer who has started on one language
+        keeps it. Everything is decided with the entry locked, so two admins clicking
+        at once cannot queue the same language twice.
+        """
+        with self._executor.transaction():
+            if not self._executor.fetchall(_LOCK_ENTRY, (entry_id,)):
+                raise UnknownEntry(entry_id)
+            if not self._executor.fetchall(_HAS_ARABIC, (entry_id,)):
+                raise NothingToTranslate(entry_id)
+            targets = PgTranslations(self._executor).untouched_languages(
+                entry_id, TARGET_LANGUAGES
+            )
+            if not targets:
+                raise AlreadyTranslated(entry_id)
+            if self._executor.fetchall(_RUN_IN_FLIGHT, (TRANSLATE_JOB_KIND, entry_id)):
+                raise AlreadyQueued(entry_id)
+            self._check_budget(entry_id)
+            queued = []
+            for target in targets:
+                payload = json.dumps(
+                    {"entry_id": entry_id, "source": Lang.AR.value, "target": target.value}
+                )
+                rows = self._executor.fetchall(_ENQUEUE, (TRANSLATE_JOB_KIND, payload))
+                queued.append(int(str(rows[0][0])))
+            self._admins.log(
+                admin_email,
+                "translate",
+                entry_id,
+                {"targets": [target.value for target in targets]},
+            )
+        return queued
+
     def _check_budget(self, entry_id: str) -> None:
         """Refuse before anything is queued if today's audio budget is spent."""
         self._executor.fetchall(_LOCK_BUDGET)
-        spent = int(str(self._executor.fetchall(_SPENT_TODAY, (JOB_KIND,))[0][0]))
+        spent = int(str(self._executor.fetchall(_SPENT_TODAY, (PAID_KINDS,))[0][0]))
         wanted = int(str(self._executor.fetchall(_ENTRY_SECONDS, (entry_id,))[0][0]))
         if spent + wanted > self._daily_limit_seconds:
             raise DailyLimitReached(

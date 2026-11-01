@@ -23,13 +23,13 @@ from maqati3.db.transcripts import PgTranscripts
 from maqati3.db.translations import PgTranslations
 from maqati3.dedup.fingerprint import Fingerprint
 from maqati3.domain import Lang
+from maqati3.transcription import AlreadyQueued, UnknownEntry
 from maqati3.translate import LineCountMismatch
 from maqati3.translation import (
     TRANSLATE_JOB_KIND,
     AlreadyTranslated,
     NothingToTranslate,
 )
-from maqati3.transcription import AlreadyQueued, UnknownEntry
 
 REPO_MIGRATIONS = Path(__file__).resolve().parents[2] / "db" / "migrations"
 SCHEMA = "maqati3_mttest"
