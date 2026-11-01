@@ -21,16 +21,20 @@ the job is handed to a second worker, and the same recording is transcribed twic
 from __future__ import annotations
 
 import logging
+import tempfile
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from maqati3.asr import AsrError, Transcriber
 from maqati3.db.queue import Dead, Job, LeaseLost, Retry, claim, complete, fail, heartbeat
 from maqati3.db.sql import Executor
+from maqati3.dedup.fingerprint import UnreadableMedia
 from maqati3.domain import Lang
+from maqati3.media import prepare_for_asr
 from maqati3.transcription import JOB_KIND, AlreadyTranscribed, EmptyTranscript, Transcripts
 
 log = logging.getLogger("maqati3")
@@ -69,8 +73,17 @@ class Skipped:
 Outcome = Stored | Skipped | Retry | Dead | LeaseLost
 
 
+#: Source file in, a file to send to the provider out. `media.prepare_for_asr` in
+#: production; a fake in tests, because ffmpeg is a genuinely external system.
+Prepare = Callable[[Path, Path], Path]
+
+
 def run_transcription(
-    payload: dict[str, Any], *, transcriber: Transcriber, transcripts: Transcripts
+    payload: dict[str, Any],
+    *,
+    transcriber: Transcriber,
+    transcripts: Transcripts,
+    prepare: Prepare = prepare_for_asr,
 ) -> Stored | Skipped:
     """One transcription, end to end. Raises for everything the queue should retry."""
     entry_id = str(payload["entry_id"])
@@ -78,7 +91,12 @@ def run_transcription(
     path = transcripts.media_path(entry_id)
     if path is None:
         raise MediaMissing(entry_id)
-    transcript = transcriber.transcribe(path, lang=lang)
+    # The staged upload is usually a phone video. Only its audio goes up, and the
+    # working copy is thrown away whatever happens -- the original is the only copy of
+    # the recording there is until the entry is published.
+    with tempfile.TemporaryDirectory(prefix="maqati3-asr-") as workdir:
+        audio = prepare(path, Path(workdir))
+        transcript = transcriber.transcribe(audio, lang=lang)
     try:
         lines = transcripts.store(entry_id, transcript)
     except AlreadyTranscribed:
@@ -116,6 +134,7 @@ def work_once(
     *,
     transcriber: Transcriber,
     transcripts: Transcripts,
+    prepare: Prepare = prepare_for_asr,
     lease_seconds: int = LEASE_SECONDS,
 ) -> Outcome | None:
     """Claim one transcription job and run it. None means the queue was empty."""
@@ -125,12 +144,15 @@ def work_once(
     try:
         with _Heartbeat(executor, job):
             outcome = run_transcription(
-                job.payload, transcriber=transcriber, transcripts=transcripts
+                job.payload,
+                transcriber=transcriber,
+                transcripts=transcripts,
+                prepare=prepare,
             )
-    except EmptyTranscript as exc:
+    except (EmptyTranscript, UnreadableMedia) as exc:
         # Terminal: max_attempts=1 spends the whole budget on this one attempt, because
-        # the next one would transcribe the same silence and be billed for it.
-        return fail(executor, job, f"no words in the recording: {exc}", max_attempts=1)
+        # the next one would send the same silence and be billed for it.
+        return fail(executor, job, f"nothing to transcribe: {exc}", max_attempts=1)
     except (AsrError, MediaMissing) as exc:
         return fail(executor, job, f"{type(exc).__name__}: {exc}")
     if not complete(executor, job):
@@ -146,6 +168,7 @@ def work_forever(
     *,
     transcriber: Transcriber,
     transcripts: Transcripts,
+    prepare: Prepare = prepare_for_asr,
     idle_sleep_s: float = IDLE_SLEEP_S,
     sleep: Callable[[float], None] = time.sleep,
     running: Callable[[], bool] = lambda: True,
@@ -157,7 +180,12 @@ def work_forever(
     """
     while running():
         try:
-            outcome = work_once(executor, transcriber=transcriber, transcripts=transcripts)
+            outcome = work_once(
+                executor,
+                transcriber=transcriber,
+                transcripts=transcripts,
+                prepare=prepare,
+            )
         except Exception:  # one bad job must not end the worker
             log.exception("a transcription job failed outside the queue's own handling")
             outcome = None

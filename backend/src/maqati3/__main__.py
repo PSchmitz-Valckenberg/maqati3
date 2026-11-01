@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import signal
 import sys
+import threading
+from types import FrameType
 
 import psycopg
 
@@ -80,12 +83,35 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 1
         transcriber = SonioxTranscriber(settings.soniox_api_key, model=settings.soniox_model)
+
+        # `docker compose stop` sends SIGTERM and waits ten seconds. The job in flight
+        # finishes -- it has already been paid for -- and the loop then stops instead of
+        # claiming another; the wait between polls is interrupted so that is quick.
+        stopping = threading.Event()
+
+        def stop(signum: int, frame: FrameType | None) -> None:
+            if stopping.is_set():
+                raise SystemExit(1)  # a second signal means now, not when this job ends
+            print(f"worker: signal {signum}, finishing the job in hand", flush=True)
+            stopping.set()
+
+        signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
+
+        def wait(seconds: float) -> None:
+            stopping.wait(seconds)
+
         with psycopg.connect(settings.database_url, autocommit=True) as connection:
             executor = PsycopgExecutor(connection)
-            print("worker: waiting for transcription jobs")
+            print("worker: waiting for transcription jobs", flush=True)
             work_forever(
-                executor, transcriber=transcriber, transcripts=PgTranscripts(executor)
+                executor,
+                transcriber=transcriber,
+                transcripts=PgTranscripts(executor),
+                sleep=wait,
+                running=lambda: not stopping.is_set(),
             )
+            print("worker: stopped", flush=True)
         return 0
 
     with psycopg.connect(settings.database_url, autocommit=True) as connection:
