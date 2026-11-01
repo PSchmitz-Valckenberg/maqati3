@@ -40,6 +40,9 @@ Tested with these exact files (`deploy/`): on 2026-10-25 locally (Arm, Chrome te
 | `SESSION_SECRET` | for admin dashboard | Signs the login cookie, min. 32 chars: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Changing it signs all admins out. |
 | `SONIOX_API_KEY` | for transcription | The provider's key. Empty: the dashboard's button answers 503 and the `worker` container does not start. |
 | `SONIOX_MODEL` | no | Defaults to `stt-async-v5`. |
+| `TRANSCRIPTION_DAILY_MINUTES` | no | Audio minutes that may go to the provider per day. Defaults to 600 (ten audio hours, about a dollar). Past that the button answers 429 until midnight. |
+| `UPLOAD_KEY_MAX_FAILURES` | no | Wrong upload keys per sender before blocking. Defaults to 30. |
+| `UPLOAD_KEY_WINDOW_MINUTES` | no | The window they are counted in. Defaults to 10. |
 
 The four admin variables belong together: **all or none**. None → the admin dashboard is closed (every endpoint returns 503). Partial configuration → the server refuses to start, reporting which value is missing.
 
@@ -108,6 +111,10 @@ cd /opt/maqati3/deploy
 docker compose logs -f worker
 ```
 
+Every registered entry says how its run is going: *requested*, *transcribing*, *did not
+work* (with the reason) or *draft ready*. The list refreshes itself while one is on its
+way, and there is no second button until it is over.
+
 The rules, with their reasons in `CLAUDE.md`, "The Admin Workflow":
 
 * **One run per entry.** While one is queued or running, a second click answers 409.
@@ -119,6 +126,14 @@ The rules, with their reasons in `CLAUDE.md`, "The Admin Workflow":
 * **Nothing of ours stays with the provider.** The file and the transcription are
   deleted there after every run.
 * **No key, no button.** Without `SONIOX_API_KEY` there is neither button nor worker.
+* **A daily cap on the money.** `TRANSCRIPTION_DAILY_MINUTES` (default 600) limits how
+  much audio may go to the provider per day. It counts what was *asked for*, not what
+  succeeded — a failed run was still sent and still billed. Two simultaneous clicks
+  cannot both slip through: the check holds an advisory lock.
+* **Only the sound goes up.** ffmpeg turns the phone video into 24 kbit/s mono Opus.
+  The original is never touched, and the timeline does not move.
+* **Clean shutdown.** `docker compose stop` sends SIGTERM: the run in hand finishes,
+  then the worker stops. A second signal stops it at once.
 
 A run that found no words at all is terminal and is **not** paid for four more times;
 the reason is in `job.last_error`, and the entry can be asked for again afterwards.

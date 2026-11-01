@@ -237,8 +237,13 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    and two runs are two writers on one timeline); **never overwrite** (lines already there, or
    an Arabic past `not_started`, refuse the request, and a result that arrives too late is
    dropped); **the draft is not quotable** (`span_role = unclear`, `citable = false`,
-   provenance `asr`); and **fail closed** (no `SONIOX_API_KEY` → 503 and no worker). A run that
-   found no words is terminal rather than retried four more times. Nothing has yet run against
+   provenance `asr`); and **fail closed** (no `SONIOX_API_KEY` → 503 and no worker). A fifth
+   rule is the money: **a daily audio budget** (`TRANSCRIPTION_DAILY_MINUTES`, default ten
+   audio hours) counted over what was *asked for* today, not what succeeded, and taken under
+   an advisory lock so two clicks in the same second cannot both pass it. A run that found no
+   words, or a file with no audio at all, is terminal rather than retried four more times.
+   Only the sound goes to the provider: ffmpeg makes 24 kbit/s mono Opus of it first
+   (`media.py`), which never touches the original and never moves the timeline. Nothing has yet run against
    the real service: the call shapes come from Soniox's documentation and are tested against a
    fake transport, so the first real run belongs on real material before it is trusted.
 4. **Review happens in the dashboard**, in a table editor: one row per moment, audio synced

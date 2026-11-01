@@ -60,6 +60,9 @@ eingespielt; er bleibt dort ohnehin zu, bis Domain und Google-Zugang eingerichte
 | `SESSION_SECRET` | für den Admin-Bereich | Signiert das Login-Cookie, mind. 32 Zeichen. `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Ändern = alle Admins abgemeldet. |
 | `SONIOX_API_KEY` | für die Transkription | Der Schlüssel des Anbieters. Leer: der Knopf im Dashboard antwortet 503 und der `worker`-Container startet nicht. |
 | `SONIOX_MODEL` | nein | Standard `stt-async-v5`. |
+| `TRANSCRIPTION_DAILY_MINUTES` | nein | Wie viele Audiominuten pro Tag zum Anbieter dürfen. Standard 600 (zehn Audiostunden, rund ein Dollar). Danach antwortet der Knopf 429 bis Mitternacht. |
+| `UPLOAD_KEY_MAX_FAILURES` | nein | Falsche Upload-Schlüssel je Absender, bevor gesperrt wird. Standard 30. |
+| `UPLOAD_KEY_WINDOW_MINUTES` | nein | Das Zeitfenster dazu. Standard 10. |
 
 Die vier Admin-Werte gehören zusammen: **alle oder keine**. Keine → der Admin-Bereich ist
 geschlossen (jede Adresse antwortet 503). Nur ein Teil → der Server startet nicht, mit
@@ -146,6 +149,11 @@ cd /opt/maqati3/deploy
 docker compose logs -f worker
 ```
 
+Im Dashboard steht an jedem registrierten Eintrag, wie es läuft: *angefragt*,
+*wird transkribiert*, *hat nicht geklappt* (mit Grund) oder *Entwurf liegt bereit*. Die
+Liste lädt sich dabei von selbst nach. Solange ein Lauf unterwegs ist, gibt es keinen
+zweiten Knopf.
+
 Was dabei gilt — die Gründe stehen in `CLAUDE.md`, „The Admin Workflow“:
 
 * **Ein Lauf je Eintrag.** Solange einer läuft oder wartet, antwortet ein zweiter Klick
@@ -158,6 +166,14 @@ Was dabei gilt — die Gründe stehen in `CLAUDE.md`, „The Admin Workflow“:
 * **Nichts bleibt beim Anbieter.** Datei und Transkription werden nach jedem Lauf dort
   wieder gelöscht.
 * **Ohne Schlüssel ist zu.** Kein `SONIOX_API_KEY` → kein Knopf, kein Worker.
+* **Eine Tagesgrenze fürs Geld.** `TRANSCRIPTION_DAILY_MINUTES` (Standard 600) begrenzt,
+  wie viel Audio pro Tag zum Anbieter geht; gezählt wird, was *angefragt* wurde, nicht
+  was gelang — ein gescheiterter Lauf wurde trotzdem geschickt und bezahlt. Zwei
+  gleichzeitige Klicks können nicht beide durch: die Prüfung hält einen Advisory-Lock.
+* **Nur der Ton geht hoch.** ffmpeg macht aus dem Handyvideo 24 kbit/s Mono-Opus; das
+  Original wird nie angefasst, und die Zeitachse verschiebt sich nicht.
+* **Sauberes Beenden.** `docker compose stop` schickt SIGTERM: der Lauf in Arbeit wird
+  fertig, danach hört der Worker auf. Ein zweites Signal beendet sofort.
 
 Ein Lauf ohne erkannte Wörter gilt als endgültig gescheitert und wird **nicht** vier
 weitere Male bezahlt; der Grund steht in `job.last_error`, und man kann danach erneut
