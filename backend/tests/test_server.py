@@ -231,3 +231,21 @@ def test_a_configured_login_sends_the_browser_to_google(tmp_path: Path) -> None:
     assert "client_id=1234-abc.apps.googleusercontent.com" in location
     assert "redirect_uri=https%3A%2F%2Farchiv.example.org%2Fapi%2Fv1%2Fadmin%2Fauth" in location
     assert "%2Fcallback" in location
+
+
+def test_the_limit_on_wrong_upload_keys_comes_from_the_environment(tmp_path: Path) -> None:
+    # A limit that can only be changed by editing the source is not configurable where
+    # it matters: on the server, at three in the morning, by the one person with ssh.
+    app = build_app(
+        Settings(
+            database_url="postgresql://unused",
+            staging_dir=tmp_path,
+            upload_key="k",
+            upload_key_max_failures=5,
+            upload_key_window_minutes=2,
+        )
+    )
+
+    limiter = app.state.key_limiter
+    assert limiter.max_failures == 5
+    assert limiter.window_s == 120
