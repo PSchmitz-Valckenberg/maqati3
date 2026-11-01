@@ -32,7 +32,12 @@ from maqati3.api.desk import (
 )
 from maqati3.api.uploads import StagedUpload
 from maqati3.auth.identity import Identity, IdentityError
-from maqati3.transcription import AlreadyQueued, AlreadyTranscribed, UnknownEntry
+from maqati3.transcription import (
+    AlreadyQueued,
+    AlreadyTranscribed,
+    TranscriptState,
+    UnknownEntry,
+)
 
 PUBLIC_URL = "https://archiv.example.org"
 SECRET = "x" * 48
@@ -500,6 +505,8 @@ def test_the_dashboard_lists_what_waits_and_what_is_registered() -> None:
         "status": "waiting",
         "entry": None,
         "registered_by": None,
+        "transcript": "none",
+        "transcript_error": None,
     }
     assert registered["status"] == "registered"
     assert registered["entry"] == {
@@ -507,6 +514,22 @@ def test_the_dashboard_lists_what_waits_and_what_is_registered() -> None:
         "scholar": {"id": "ibn-baz", "name_ar": "ابن باز", "name_en": "Ibn Baz"},
     }
     assert registered["registered_by"] == "yusuf@example.org"
+
+
+def test_the_dashboard_says_how_a_transcription_went() -> None:
+    # "It did not work" is not enough to decide whether to ask again or replace the
+    # file, so the reason travels with the state.
+    setup = signed_in()
+    setup.desk.registered["bbb"] = replace(
+        setup.desk.registered["bbb"],
+        transcript=TranscriptState.FAILED,
+        transcript_error="nothing to transcribe: no audio stream",
+    )
+
+    _, registered = setup.client.get("/api/v1/admin/submissions").json()
+
+    assert registered["transcript"] == "failed"
+    assert "no audio stream" in registered["transcript_error"]
 
 
 def test_an_admin_can_play_an_upload(tmp_path: Path) -> None:

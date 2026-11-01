@@ -31,6 +31,7 @@ from maqati3.transcription import (
     AlreadyQueued,
     AlreadyTranscribed,
     EmptyTranscript,
+    TranscriptState,
     UnknownEntry,
 )
 
@@ -283,3 +284,63 @@ def test_integration_a_stored_draft_puts_the_arabic_in_front_of_a_reviewer() -> 
         # Only the language that was transcribed moves. The translations are a separate
         # piece of work, each approved on its own.
         assert states == {"ar": "draft_ready", "en": "not_started", "de": "not_started"}
+
+
+# ------------------------------------------------------- what the dashboard is told
+
+
+def only_item(executor: Any) -> Any:
+    (item,) = PgDesk(executor).items()
+    return item
+
+
+@requires_database
+def test_integration_a_fresh_entry_offers_a_transcription_and_claims_none() -> None:
+    with migrated_schema() as (_, executor):
+        registered_entry(executor)
+
+        assert only_item(executor).transcript is TranscriptState.NONE
+
+
+@requires_database
+def test_integration_the_dashboard_follows_the_run_from_queued_to_running() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = registered_entry(executor)
+        PgDesk(executor).request_transcription(entry_id, "yusuf@example.org")
+
+        assert only_item(executor).transcript is TranscriptState.QUEUED
+
+        connection.execute("UPDATE job SET state = 'running'")
+
+        assert only_item(executor).transcript is TranscriptState.RUNNING
+
+
+@requires_database
+def test_integration_a_failed_run_shows_its_reason_so_an_admin_can_act() -> None:
+    # "It did not work" is not enough to decide whether to ask again or replace the file.
+    with migrated_schema() as (connection, executor):
+        entry_id = registered_entry(executor)
+        PgDesk(executor).request_transcription(entry_id, "yusuf@example.org")
+        connection.execute(
+            "UPDATE job SET state = 'failed', last_error = 'nothing to transcribe: no audio'"
+        )
+
+        item = only_item(executor)
+
+        assert item.transcript is TranscriptState.FAILED
+        assert item.transcript_error is not None
+        assert "no audio" in item.transcript_error
+
+
+@requires_database
+def test_integration_a_stored_transcript_is_what_the_dashboard_reports() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = registered_entry(executor)
+        PgDesk(executor).request_transcription(entry_id, "yusuf@example.org")
+        connection.execute("UPDATE job SET state = 'done'")
+        PgTranscripts(executor).store(entry_id, DRAFT)
+
+        item = only_item(executor)
+
+        assert item.transcript is TranscriptState.READY
+        assert item.transcript_error is None

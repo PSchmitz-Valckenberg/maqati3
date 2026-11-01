@@ -16,10 +16,12 @@ Two of them are gates in the sense `WORKFLOW.md` means:
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
 from maqati3.asr import AsrTranscript
+from maqati3.domain import ReviewState
 
 #: The `job.kind` of a transcription. One worker process claims these.
 JOB_KIND = "transcribe"
@@ -50,6 +52,42 @@ class EmptyTranscript(ValueError):
     """
 
 
+class TranscriptState(StrEnum):
+    """What an admin sees about one entry's transcription.
+
+    Not a stored column: it is read off the newest transcription job and the Arabic
+    review state every time it is asked for. Storing it would mean a second place that
+    can disagree with the queue.
+    """
+
+    NONE = "none"
+    QUEUED = "queued"
+    RUNNING = "running"
+    FAILED = "failed"
+    #: There is a transcript. Whether a worker wrote it, a reviewer typed it or an
+    #: import brought it in makes no difference to what may be done next.
+    READY = "ready"
+
+
+#: Job states that say something is still coming. Anything else -- `done`, or a state
+#: this version has never heard of -- is read as "nothing there", which is the answer
+#: that cannot mislead: it offers a run rather than claiming a transcript.
+_IN_FLIGHT = {"pending": TranscriptState.QUEUED, "running": TranscriptState.RUNNING}
+
+
+def transcript_state(
+    arabic: ReviewState | None, job_state: str | None
+) -> TranscriptState:
+    """What to show for one entry, given its Arabic review state and newest job."""
+    if arabic is not None and arabic is not ReviewState.NOT_STARTED:
+        return TranscriptState.READY
+    if job_state in _IN_FLIGHT:
+        return _IN_FLIGHT[job_state]
+    if job_state == "failed":
+        return TranscriptState.FAILED
+    return TranscriptState.NONE
+
+
 class Transcripts(Protocol):
     """Where a finished run puts its result, as the worker sees it."""
 
@@ -71,6 +109,8 @@ __all__ = [
     "AlreadyQueued",
     "AlreadyTranscribed",
     "EmptyTranscript",
+    "TranscriptState",
     "Transcripts",
     "UnknownEntry",
+    "transcript_state",
 ]
