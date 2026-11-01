@@ -27,6 +27,7 @@ from maqati3.db.sql import PooledExecutor
 from maqati3.db.submissions import PgFingerprintIndex, PgKnownHashes, PgSubmissions
 from maqati3.dedup.chromaprint import ChromaprintExtractor
 from maqati3.staging import DEFAULT_MAX_BYTES, LocalUploadStore
+from maqati3.transcription import DEFAULT_DAILY_LIMIT_SECONDS
 
 #: The repository root, for the defaults below: backend/src/maqati3/server.py -> repo.
 _REPO = Path(__file__).resolve().parents[3]
@@ -91,6 +92,9 @@ class Settings(BaseSettings):
     #: refuses to start a worker: nothing half-configured, like the admin login.
     soniox_api_key: str = ""
     soniox_model: str = SONIOX_MODEL
+    #: Audio minutes that may be sent for transcription in one day. A bug, or twenty
+    #: registrations in one evening, must not become a surprise bill.
+    transcription_daily_minutes: int = DEFAULT_DAILY_LIMIT_SECONDS // 60
 
 
 def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | None:
@@ -118,7 +122,9 @@ def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | 
             client_id=settings.google_client_id, client_secret=settings.google_client_secret
         ),
         admins=PgAdmins(executor),
-        desk=PgDesk(executor),
+        desk=PgDesk(
+            executor, daily_limit_seconds=settings.transcription_daily_minutes * 60
+        ),
         public_url=settings.public_url,
         session_secret=settings.session_secret,
         transcription=bool(settings.soniox_api_key.strip()),

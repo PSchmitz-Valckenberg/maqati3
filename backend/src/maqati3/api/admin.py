@@ -42,6 +42,7 @@ from maqati3.auth.identity import IdentityError, IdentityProvider
 from maqati3.transcription import (
     AlreadyQueued,
     AlreadyTranscribed,
+    DailyLimitReached,
     TranscriptState,
     UnknownEntry,
 )
@@ -70,6 +71,7 @@ TRANSCRIPTION_NOT_CONFIGURED = "transcription_not_configured"
 UNKNOWN_ENTRY = "unknown_entry"
 ALREADY_TRANSCRIBED = "already_transcribed"
 ALREADY_QUEUED = "already_queued"
+DAILY_LIMIT_REACHED = "daily_limit_reached"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -364,6 +366,10 @@ def transcribe(entry_id: str, config: Config, admin: Admin) -> TranscriptionOut:
         raise HTTPException(status_code=409, detail=ALREADY_TRANSCRIBED) from exc
     except AlreadyQueued as exc:
         raise HTTPException(status_code=409, detail=ALREADY_QUEUED) from exc
+    except DailyLimitReached as exc:
+        # 429, like the upload key limit: the answer is "not now", not "never".
+        log.warning("transcription refused, daily budget spent: %s", exc)
+        raise HTTPException(status_code=429, detail=DAILY_LIMIT_REACHED) from exc
     return TranscriptionOut(job_id=job_id)
 
 

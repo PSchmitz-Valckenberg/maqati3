@@ -122,6 +122,7 @@ describe('what the dashboard says when a transcription is refused', () => {
     ['unknown_entry', 'unknownEntry'],
     ['already_transcribed', 'alreadyTranscribed'],
     ['already_queued', 'alreadyQueued'],
+    ['daily_limit_reached', 'dailyLimitReached'],
   ];
 
   it.each(refusals)('maps %s to its own message rather than the general one', (code, key) => {
