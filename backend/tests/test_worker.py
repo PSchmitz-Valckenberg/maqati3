@@ -24,6 +24,8 @@ from maqati3.db.queue import Dead, Retry
 from maqati3.dedup.fingerprint import UnreadableMedia
 from maqati3.domain import Lang
 from maqati3.transcription import AlreadyTranscribed, EmptyTranscript
+from maqati3.translate import LineCountMismatch
+from maqati3.translation import AlreadyTranslated
 from maqati3.worker import Skipped, Stored, work_once
 
 REPO_MIGRATIONS = Path(__file__).resolve().parents[2] / "db" / "migrations"
@@ -235,3 +237,125 @@ def test_integration_a_recording_with_no_audio_never_reaches_the_provider() -> N
         assert prepare.calls == [AUDIO]
         # Terminal: the same file will have no audio on the next four attempts either.
         assert job_row(connection, job_id)[0] == "failed"
+
+
+# ------------------------------------------------------- drafting translations
+
+ENGLISH = ("What is the ruling?", "This is permitted.")
+ARABIC_LINES = ("ما حكم هذا؟", "هذا جائز.")
+
+
+def enqueue_translation(connection: Any, target: str = "en") -> int:
+    row = connection.execute(
+        "INSERT INTO job (kind, payload) VALUES ('translate', %s::jsonb) RETURNING id",
+        (f'{{"entry_id": "{ENTRY}", "source": "ar", "target": "{target}"}}',),
+    ).fetchone()
+    return int(row[0])
+
+
+class FakeTranslator:
+    def __init__(self, result: tuple[str, ...] | Exception = ENGLISH) -> None:
+        self._result = result
+        self.calls: list[tuple[tuple[str, ...], Lang, Lang]] = []
+
+    def translate(self, lines: Any, *, source: Lang, target: Lang) -> tuple[str, ...]:
+        self.calls.append((tuple(lines), source, target))
+        if isinstance(self._result, Exception):
+            raise self._result
+        return self._result
+
+
+class FakeTranslations:
+    def __init__(
+        self, lines: tuple[str, ...] = ARABIC_LINES, on_store: Exception | None = None
+    ) -> None:
+        self._lines = lines
+        self._on_store = on_store
+        self.stored: list[tuple[str, Lang, tuple[str, ...]]] = []
+
+    def source_lines(self, entry_id: str, lang: Lang) -> tuple[str, ...]:
+        return self._lines
+
+    def store(self, entry_id: str, target: Lang, lines: Any) -> int:
+        if self._on_store is not None:
+            raise self._on_store
+        self.stored.append((entry_id, target, tuple(lines)))
+        return len(tuple(lines))
+
+
+def run_both(executor: Any, translator: Any, translations: Any) -> Any:
+    return work_once(
+        executor,
+        transcriber=FakeTranscriber(),
+        transcripts=FakeTranscripts(),
+        prepare=FakePrepare(),
+        translator=translator,
+        translations=translations,
+    )
+
+
+@requires_database
+def test_integration_a_worker_without_a_translator_leaves_those_jobs_alone() -> None:
+    # The transcription worker must not claim work it cannot do and fail it five times.
+    with queue_schema() as (connection, executor):
+        job_id = enqueue_translation(connection)
+
+        assert run(executor, FakeTranscriber(), FakeTranscripts()) is None
+        assert job_row(connection, job_id)[0] == "pending"
+
+
+@requires_database
+def test_integration_an_entry_with_no_arabic_is_never_sent_to_the_model() -> None:
+    with queue_schema() as (connection, executor):
+        job_id = enqueue_translation(connection)
+        translator = FakeTranslator()
+
+        outcome = run_both(executor, translator, FakeTranslations(lines=()))
+
+        assert isinstance(outcome, Dead)
+        assert translator.calls == []
+        assert job_row(connection, job_id)[0] == "failed"
+
+
+@requires_database
+def test_integration_a_draft_whose_line_count_is_wrong_is_tried_again() -> None:
+    # Unlike silence, a miscount is a thing the model may well get right next time, and
+    # a draft costs fractions of a cent. Nothing is stored in the meantime.
+    with queue_schema() as (connection, executor):
+        job_id = enqueue_translation(connection)
+        translations = FakeTranslations()
+
+        outcome = run_both(executor, FakeTranslator(LineCountMismatch("2 vs 1")), translations)
+
+        assert isinstance(outcome, Retry)
+        assert translations.stored == []
+        assert job_row(connection, job_id)[0] == "pending"
+
+
+@requires_database
+def test_integration_a_draft_that_arrived_too_late_is_dropped_not_written() -> None:
+    with queue_schema() as (connection, executor):
+        job_id = enqueue_translation(connection)
+        translations = FakeTranslations(on_store=AlreadyTranslated(ENTRY))
+
+        outcome = run_both(executor, FakeTranslator(), translations)
+
+        assert isinstance(outcome, Skipped)
+        assert job_row(connection, job_id) == ("done", None)
+
+
+@requires_database
+def test_integration_a_finished_draft_is_stored_for_the_language_it_was_asked_for() -> None:
+    with queue_schema() as (connection, executor):
+        job_id = enqueue_translation(connection, target="de")
+        translator = FakeTranslator(("Was ist das Urteil?", "Das ist erlaubt."))
+        translations = FakeTranslations()
+
+        outcome = run_both(executor, translator, translations)
+
+        assert outcome == Stored(entry_id=ENTRY, lines=2)
+        assert translator.calls == [(ARABIC_LINES, Lang.AR, Lang.DE)]
+        assert translations.stored == [
+            (ENTRY, Lang.DE, ("Was ist das Urteil?", "Das ist erlaubt."))
+        ]
+        assert job_row(connection, job_id) == ("done", None)
