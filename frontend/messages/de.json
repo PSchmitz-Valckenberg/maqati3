@@ -132,6 +132,7 @@
       "unknownEntry": "Diesen Eintrag gibt es nicht mehr. Die Liste wurde neu geladen.",
       "alreadyTranscribed": "Für diese Aufnahme gibt es schon ein Transkript, oder jemand arbeitet daran.",
       "alreadyQueued": "Für diese Aufnahme ist eine Transkription schon unterwegs.",
+      "dailyLimitReached": "Das Transkriptions-Budget für heute ist aufgebraucht. Morgen geht es weiter, oder der Admin setzt die Grenze höher.",
       "network": "Die Verbindung wurde unterbrochen.",
       "generic": "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
     },

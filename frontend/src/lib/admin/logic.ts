@@ -87,6 +87,7 @@ const ERROR_KEYS: Record<string, string> = {
   unknown_entry: 'unknownEntry',
   already_transcribed: 'alreadyTranscribed',
   already_queued: 'alreadyQueued',
+  daily_limit_reached: 'dailyLimitReached',
   network: 'network',
 };
 

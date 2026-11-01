@@ -132,6 +132,7 @@
       "unknownEntry": "That entry is not in the archive any more. The list was reloaded.",
       "alreadyTranscribed": "This recording already has a transcript, or someone is working on one.",
       "alreadyQueued": "A transcription for this recording is already on its way.",
+      "dailyLimitReached": "Today's transcription budget is spent. It starts again tomorrow, or the admin can raise the limit.",
       "network": "The connection was interrupted.",
       "generic": "Something went wrong. Please try again."
     },
