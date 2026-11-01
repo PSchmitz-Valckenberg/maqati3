@@ -72,6 +72,8 @@ class DashboardItem:
     #: Why the last run failed, as the queue recorded it. "It did not work" is not
     #: enough to decide whether to ask again or to replace the file.
     transcript_error: str | None = None
+    #: How the English and German drafts are going, in the same five words.
+    translations: TranscriptState = TranscriptState.NONE
 
 
 class Admins(Protocol):
@@ -132,6 +134,14 @@ class Desk(Protocol):
 
         Raises `UnknownEntry`, `AlreadyTranscribed` or `AlreadyQueued` (see
         `maqati3.transcription`), and in every one of those cases queues nothing.
+        """
+        ...
+
+    def request_translation(self, entry_id: str, admin_email: str) -> list[int]:
+        """Queue a draft of every language still untouched; the job ids.
+
+        Raises `UnknownEntry`, `NothingToTranslate`, `AlreadyTranslated` or
+        `AlreadyQueued`, and in every one of those cases queues nothing.
         """
         ...
 

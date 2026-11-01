@@ -46,6 +46,7 @@ from maqati3.transcription import (
     TranscriptState,
     UnknownEntry,
 )
+from maqati3.translation import AlreadyTranslated, NothingToTranslate
 
 log = logging.getLogger("maqati3")
 
@@ -72,6 +73,9 @@ UNKNOWN_ENTRY = "unknown_entry"
 ALREADY_TRANSCRIBED = "already_transcribed"
 ALREADY_QUEUED = "already_queued"
 DAILY_LIMIT_REACHED = "daily_limit_reached"
+TRANSLATION_NOT_CONFIGURED = "translation_not_configured"
+NOTHING_TO_TRANSLATE = "nothing_to_translate"
+ALREADY_TRANSLATED = "already_translated"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -90,6 +94,8 @@ class AdminConfig:
     #: Whether a speech-to-text provider is configured. False closes the one route that
     #: spends money, the same way a missing Google client closes the whole dashboard.
     transcription: bool = False
+    #: Whether a translation model is configured. Same rule, separate key.
+    translation: bool = False
 
     def __post_init__(self) -> None:
         if len(self.session_secret) < MIN_SESSION_SECRET:
@@ -159,6 +165,7 @@ class AdminOut(BaseModel):
     name: str | None = None
     #: What this dashboard can offer, so the page does not show a button that 503s.
     transcription: bool = False
+    translation: bool = False
 
 
 class RegisteredOut(BaseModel):
@@ -178,6 +185,7 @@ class DashboardItemOut(BaseModel):
     registered_by: str | None
     transcript: TranscriptState = TranscriptState.NONE
     transcript_error: str | None = None
+    translations: TranscriptState = TranscriptState.NONE
 
     @classmethod
     def of(cls, item: DashboardItem) -> DashboardItemOut:
@@ -205,6 +213,7 @@ class DashboardItemOut(BaseModel):
             registered_by=item.registered_by,
             transcript=item.transcript,
             transcript_error=item.transcript_error,
+            translations=item.translations,
         )
 
 
@@ -294,7 +303,12 @@ def logout(request: Request) -> StatusOut:
 
 @router.get("/me")
 def me(admin: Admin, config: Config) -> AdminOut:
-    return AdminOut(email=admin.email, name=admin.name, transcription=config.transcription)
+    return AdminOut(
+        email=admin.email,
+        name=admin.name,
+        transcription=config.transcription,
+        translation=config.translation,
+    )
 
 
 # ------------------------------------------------------------------ the dashboard
@@ -371,6 +385,35 @@ def transcribe(entry_id: str, config: Config, admin: Admin) -> TranscriptionOut:
         log.warning("transcription refused, daily budget spent: %s", exc)
         raise HTTPException(status_code=429, detail=DAILY_LIMIT_REACHED) from exc
     return TranscriptionOut(job_id=job_id)
+
+
+class DraftsOut(BaseModel):
+    job_ids: list[int]
+
+
+@router.post("/entries/{entry_id}/translate", status_code=202, dependencies=Mutating)
+def translate(entry_id: str, config: Config, admin: Admin) -> DraftsOut:
+    """Queue a draft translation of every language still untouched.
+
+    One job per language, so a German failure does not redo the English. 202 for the
+    same reason as transcription: nothing is translated when this returns.
+    """
+    if not config.translation:
+        raise HTTPException(status_code=503, detail=TRANSLATION_NOT_CONFIGURED)
+    try:
+        job_ids = config.desk.request_translation(entry_id, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except NothingToTranslate as exc:
+        raise HTTPException(status_code=409, detail=NOTHING_TO_TRANSLATE) from exc
+    except AlreadyTranslated as exc:
+        raise HTTPException(status_code=409, detail=ALREADY_TRANSLATED) from exc
+    except AlreadyQueued as exc:
+        raise HTTPException(status_code=409, detail=ALREADY_QUEUED) from exc
+    except DailyLimitReached as exc:
+        log.warning("drafts refused, daily budget spent: %s", exc)
+        raise HTTPException(status_code=429, detail=DAILY_LIMIT_REACHED) from exc
+    return DraftsOut(job_ids=job_ids)
 
 
 @router.post("/scholars", dependencies=Mutating)

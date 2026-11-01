@@ -29,6 +29,7 @@ from maqati3.db.submissions import PgFingerprintIndex, PgKnownHashes, PgSubmissi
 from maqati3.dedup.chromaprint import ChromaprintExtractor
 from maqati3.staging import DEFAULT_MAX_BYTES, LocalUploadStore
 from maqati3.transcription import DEFAULT_DAILY_LIMIT_SECONDS
+from maqati3.translate.claude import DEFAULT_MODEL as TRANSLATION_MODEL
 
 #: The repository root, for the defaults below: backend/src/maqati3/server.py -> repo.
 _REPO = Path(__file__).resolve().parents[3]
@@ -97,9 +98,14 @@ class Settings(BaseSettings):
     #: refuses to start a worker: nothing half-configured, like the admin login.
     soniox_api_key: str = ""
     soniox_model: str = SONIOX_MODEL
-    #: Audio minutes that may be sent for transcription in one day. A bug, or twenty
-    #: registrations in one evening, must not become a surprise bill.
+    #: Audio minutes that may be sent for transcription or translation in one day. A
+    #: bug, or twenty registrations in one evening, must not become a surprise bill.
+    #: One budget for both: they spend money on the same recording.
     transcription_daily_minutes: int = DEFAULT_DAILY_LIMIT_SECONDS // 60
+    #: The model that drafts translations. Empty closes that route (503) and leaves the
+    #: worker taking transcription jobs only.
+    anthropic_api_key: str = ""
+    translation_model: str = TRANSLATION_MODEL
 
 
 def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | None:
@@ -133,6 +139,7 @@ def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | 
         public_url=settings.public_url,
         session_secret=settings.session_secret,
         transcription=bool(settings.soniox_api_key.strip()),
+        translation=bool(settings.anthropic_api_key.strip()),
     )
 
 

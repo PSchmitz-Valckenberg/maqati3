@@ -29,8 +29,10 @@ from maqati3.db.seed import load_scholars, load_topics, seed_reference
 from maqati3.db.sql import PsycopgExecutor
 from maqati3.db.submissions import PgSubmissions
 from maqati3.db.transcripts import PgTranscripts
+from maqati3.db.translations import PgTranslations
 from maqati3.server import Settings, build_app, sweep_staging
 from maqati3.staging import LocalUploadStore
+from maqati3.translate.claude import ClaudeTranslator
 from maqati3.worker import work_forever
 
 
@@ -83,6 +85,13 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 1
         transcriber = SonioxTranscriber(settings.soniox_api_key, model=settings.soniox_model)
+        # Optional: without it the worker runs transcriptions only and leaves draft
+        # translations in the queue, rather than failing them five times.
+        translator = (
+            ClaudeTranslator(settings.anthropic_api_key, model=settings.translation_model)
+            if settings.anthropic_api_key.strip()
+            else None
+        )
 
         # `docker compose stop` sends SIGTERM and waits ten seconds. The job in flight
         # finishes -- it has already been paid for -- and the loop then stops instead of
@@ -108,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
                 executor,
                 transcriber=transcriber,
                 transcripts=PgTranscripts(executor),
+                translator=translator,
+                translations=PgTranslations(executor) if translator else None,
                 sleep=wait,
                 running=lambda: not stopping.is_set(),
             )

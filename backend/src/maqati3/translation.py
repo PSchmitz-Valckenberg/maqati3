@@ -19,7 +19,9 @@ from maqati3.domain import Lang
 from maqati3.transcription import (
     AlreadyQueued,
     DailyLimitReached,
+    TranscriptState,
     UnknownEntry,
+    transcript_state,
 )
 
 #: The `job.kind` of a draft translation. The worker claims these beside `transcribe`.
@@ -41,6 +43,20 @@ class AlreadyTranslated(ValueError):
     is the one that matters: by then the money is spent, and overwriting a reviewer's
     English because our draft arrived late would be the expensive mistake.
     """
+
+
+def translation_state(
+    languages_with_text: int, job_state: str | None
+) -> TranscriptState:
+    """What the dashboard shows about an entry's drafts.
+
+    `READY` means every target language has text; one of two is not done, because the
+    other one still has to be asked for. The same five values as a transcription's
+    state, so the dashboard has one vocabulary rather than two.
+    """
+    if languages_with_text >= len(TARGET_LANGUAGES):
+        return TranscriptState.READY
+    return transcript_state(None, job_state)
 
 
 class Translations(Protocol):
@@ -68,4 +84,5 @@ __all__ = [
     "NothingToTranslate",
     "Translations",
     "UnknownEntry",
+    "translation_state",
 ]
