@@ -21,6 +21,7 @@ import pytest
 
 from maqati3.asr import AsrError, AsrLine, AsrTranscript
 from maqati3.db.queue import Dead, Retry
+from maqati3.dedup.fingerprint import UnreadableMedia
 from maqati3.domain import Lang
 from maqati3.transcription import AlreadyTranscribed, EmptyTranscript
 from maqati3.worker import Skipped, Stored, work_once
@@ -35,6 +36,8 @@ requires_database = pytest.mark.skipif(
 
 ENTRY = "ibn-uthaymin-000421"
 AUDIO = Path("/staging/recording.m4a")
+#: What `media.prepare_for_asr` leaves behind: the audio alone, mono Opus.
+PREPARED = Path("/tmp/work/audio.opus")
 
 DRAFT = AsrTranscript(
     lang=Lang.AR, lines=(AsrLine(t_start_ms=0, t_end_ms=2400, text="هذا جائز."),)
@@ -106,8 +109,29 @@ class FakeTranscripts:
         return len(transcript.lines)
 
 
-def run(executor: Any, transcriber: Any, transcripts: Any) -> Any:
-    return work_once(executor, transcriber=transcriber, transcripts=transcripts)
+class FakePrepare:
+    """Stands in for ffmpeg: records what it was asked to normalise, or raises."""
+
+    def __init__(self, problem: Exception | None = None) -> None:
+        self._problem = problem
+        self.calls: list[Path] = []
+
+    def __call__(self, source: Path, workdir: Path) -> Path:
+        self.calls.append(source)
+        if self._problem is not None:
+            raise self._problem
+        return PREPARED
+
+
+def run(
+    executor: Any, transcriber: Any, transcripts: Any, prepare: Any | None = None
+) -> Any:
+    return work_once(
+        executor,
+        transcriber=transcriber,
+        transcripts=transcripts,
+        prepare=prepare or FakePrepare(),
+    )
 
 
 @requires_database
@@ -189,6 +213,25 @@ def test_integration_a_finished_run_stores_the_draft_and_closes_the_job() -> Non
         outcome = run(executor, transcriber, transcripts)
 
         assert outcome == Stored(entry_id=ENTRY, lines=1)
-        assert transcriber.calls == [(AUDIO, Lang.AR)]
+        # The prepared audio, never the 200 MB phone video it came out of.
+        assert transcriber.calls == [(PREPARED, Lang.AR)]
         assert transcripts.stored == [(ENTRY, DRAFT)]
         assert job_row(connection, job_id) == ("done", None)
+
+
+@requires_database
+def test_integration_a_recording_with_no_audio_never_reaches_the_provider() -> None:
+    # A photo, or a silent screen recording. ffmpeg finds that out for nothing; the
+    # provider would find it out for money and answer with silence.
+    with queue_schema() as (connection, executor):
+        job_id = enqueue(connection)
+        transcriber = FakeTranscriber()
+        prepare = FakePrepare(UnreadableMedia("no audio stream"))
+
+        outcome = run(executor, transcriber, FakeTranscripts(), prepare)
+
+        assert isinstance(outcome, Dead)
+        assert transcriber.calls == []
+        assert prepare.calls == [AUDIO]
+        # Terminal: the same file will have no audio on the next four attempts either.
+        assert job_row(connection, job_id)[0] == "failed"
