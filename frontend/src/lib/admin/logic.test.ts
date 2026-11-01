@@ -5,6 +5,7 @@ import en from '../../../messages/en.json';
 import {
   canRegister,
   canTranscribe,
+  canTranslate,
   errorKey,
   groupItems,
   loginResult,
@@ -27,6 +28,7 @@ function item(overrides: Partial<Item> = {}): Item {
     registered_by: null,
     transcript: 'none',
     transcript_error: null,
+    translations: 'none',
     ...overrides,
   };
 }
@@ -123,6 +125,9 @@ describe('what the dashboard says when a transcription is refused', () => {
     ['already_transcribed', 'alreadyTranscribed'],
     ['already_queued', 'alreadyQueued'],
     ['daily_limit_reached', 'dailyLimitReached'],
+    ['translation_not_configured', 'translationNotConfigured'],
+    ['nothing_to_translate', 'nothingToTranslate'],
+    ['already_translated', 'alreadyTranslated'],
   ];
 
   it.each(refusals)('maps %s to its own message rather than the general one', (code, key) => {
@@ -157,6 +162,47 @@ describe('what the dashboard says when a transcription is refused', () => {
     for (const state of ['queued', 'running', 'failed', 'ready'] as const) {
       for (const messages of [en, de, ar]) {
         const text = (messages.admin.transcript as Record<string, string>)[state];
+        expect(text ?? '').not.toBe('');
+      }
+    }
+  });
+});
+
+describe('canTranslate', () => {
+  const ready = {
+    translation: true,
+    entryId: 'ibn-baz-000042',
+    transcript: 'ready',
+    translations: 'none',
+  } as const;
+
+  it('is not offered before there is an Arabic transcript to translate', () => {
+    // The server answers 409. There is nothing to translate until the Arabic is there.
+    for (const transcript of ['none', 'queued', 'running', 'failed'] as const) {
+      expect(canTranslate({ ...ready, transcript })).toBe(false);
+    }
+  });
+
+  it('is not offered without a model, or before the upload is an entry', () => {
+    expect(canTranslate({ ...ready, translation: false })).toBe(false);
+    expect(canTranslate({ ...ready, entryId: null })).toBe(false);
+  });
+
+  it('is not offered while drafts are on their way or already there', () => {
+    for (const translations of ['queued', 'running', 'ready'] as const) {
+      expect(canTranslate({ ...ready, translations })).toBe(false);
+    }
+  });
+
+  it('is offered once the Arabic is there, and again after a failed run', () => {
+    expect(canTranslate(ready)).toBe(true);
+    expect(canTranslate({ ...ready, translations: 'failed' })).toBe(true);
+  });
+
+  it('has words for the drafts in all three languages', () => {
+    for (const state of ['queued', 'running', 'failed', 'ready'] as const) {
+      for (const messages of [en, de, ar]) {
+        const text = (messages.admin.drafts as Record<string, string>)[state];
         expect(text ?? '').not.toBe('');
       }
     }
