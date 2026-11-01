@@ -60,6 +60,8 @@ eingespielt; er bleibt dort ohnehin zu, bis Domain und Google-Zugang eingerichte
 | `SESSION_SECRET` | für den Admin-Bereich | Signiert das Login-Cookie, mind. 32 Zeichen. `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Ändern = alle Admins abgemeldet. |
 | `SONIOX_API_KEY` | für die Transkription | Der Schlüssel des Anbieters. Leer: der Knopf im Dashboard antwortet 503 und der `worker`-Container startet nicht. |
 | `SONIOX_MODEL` | nein | Standard `stt-async-v5`. |
+| `ANTHROPIC_API_KEY` | für die Übersetzung | Der Schlüssel für Claude Haiku. Leer: der Entwurfs-Knopf antwortet 503, und der Worker nimmt nur Transkriptionen. |
+| `TRANSLATION_MODEL` | nein | Standard `claude-haiku-5-5`. |
 | `TRANSCRIPTION_DAILY_MINUTES` | nein | Wie viele Audiominuten pro Tag zum Anbieter dürfen. Standard 600 (zehn Audiostunden, rund ein Dollar). Danach antwortet der Knopf 429 bis Mitternacht. |
 | `UPLOAD_KEY_MAX_FAILURES` | nein | Falsche Upload-Schlüssel je Absender, bevor gesperrt wird. Standard 30. |
 | `UPLOAD_KEY_WINDOW_MINUTES` | nein | Das Zeitfenster dazu. Standard 10. |
@@ -183,6 +185,32 @@ anfragen.
 Aufrufformen stammen aus der Dokumentation von Soniox und sind gegen einen gefälschten
 Transport getestet. Der erste echte Lauf gehört auf echtes Material, bevor irgendetwas
 davon geglaubt wird.
+
+### Entwurfsübersetzungen auf Knopfdruck
+
+Sobald ein Eintrag ein arabisches Transkript hat, steht dort **Übersetzungen entwerfen**.
+Der Knopf stellt **einen Auftrag je Sprache** in die Warteschlange, Englisch und Deutsch
+getrennt — scheitert das Deutsche, muss das fertige Englische nicht noch einmal bezahlt
+werden, und wer schon an einer Sprache arbeitet, behält sie.
+
+* **Die Zeilenzahl ist in jeder Sprache gleich.** Das ist die harte Regel: Zeile 42 auf
+  Deutsch gehört zu der Sekunde, in der Zeile 42 gesagt wurde. Das Modell antwortet
+  deshalb in einem festen JSON-Schema, jede Zeile geht nummeriert hoch, und die Zahl wird
+  danach geprüft — und beim Schreiben in die Datenbank ein zweites Mal. Stimmt sie nicht,
+  wird nichts gespeichert.
+* **Entwurf, nicht Übersetzung.** Herkunft `machine_translation`, Zustand `draft_ready`.
+  Nichts davon wird öffentlich, bevor ein Mensch die Sprache freigegeben hat.
+* **Fachbegriffe bleiben stehen.** Das Modell wird angewiesen, ḥarām, makrūh, lā yanbaghī
+  und dergleichen als Begriff zu behalten statt sie in Alltagssprache aufzulösen — und ein
+  Urteil weder abzuschwächen noch zu verschärfen. Geprüft wird das von einem Menschen
+  (Issue #19), nicht von uns.
+* **Dasselbe Tagesbudget** wie die Transkription, in Audiominuten.
+
+**Nicht die Batch-API**, obwohl `CLAUDE.md` sie nennt: Batch halbiert den Preis, der ganze
+Korpus kostet im Entwurf rund neun Euro, und ein Auftrag, der absendet, eine Batch-Id
+merkt und Stunden später wiederkommt, wäre eine zweite Auftragsform im Betrieb — für
+etwa vier Euro. Wächst der Korpus um zwei Zehnerpotenzen, ist das die erste Stelle, die
+man neu anschaut.
 
 ### Ohne Dashboard: die Inbox auf dem Server
 

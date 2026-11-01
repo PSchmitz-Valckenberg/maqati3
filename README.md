@@ -78,14 +78,14 @@ flowchart LR
     L -- "different" --> A["Admin dashboard<br/>(Google sign-in)"]
     A -- "register with<br/>the scholar" --> E["Draft entry<br/>attribution: not sure"]
     E --> T["Arabic transcript<br/>with timestamps"]
-    T -.-> D["Draft translations<br/>English · German"]
+    T --> D["Draft translations<br/>English · German"]
     D -.-> V["Line-by-line review<br/>per language"]
     V -.-> P["Public library<br/>every line at its second"]
 
     classDef built fill:#d1fae5,stroke:#047857,color:#064e3b
     classDef planned fill:#f5f5f4,stroke:#a8a29e,color:#57534e,stroke-dasharray:4 3
-    class U,C,R,L,A,E,T built
-    class D,V,P planned
+    class U,C,R,L,A,E,T,D built
+    class V,P planned
 ```
 
 <sub>Solid: built. Dashed: planned.</sub>
@@ -102,9 +102,10 @@ flowchart LR
    entry whose attribution starts at *not sure*.
 4. **Transcribe, translate, review**. The admin presses *Transcribe*: a worker sends
    the recording to the speech-to-text service and stores one row per moment, as a
-   draft that is explicitly not quotable until a person has been through it. Draft
-   translations and the review table — one row per moment, the audio synced to the row,
-   one language at a time — are *being built*.
+   draft that is explicitly not quotable until a person has been through it. A second
+   button drafts English and German line by line, with the same number of rows in every
+   language — line 42 in German belongs to the second line 42 was spoken. The review
+   table, one language at a time, is *being built*.
 5. **Publish** *(Phase 1)*. Approved entries appear in the public library, with deep
    links that land on the exact second.
 
@@ -136,7 +137,7 @@ Pre-alpha. Nothing is public yet; the upload runs on a provisional server.
 | ✅ | Bulk upload with live duplicate check | built and running |
 | ✅ | Admin dashboard: sign in, play, register, discard | built; goes live with the final domain |
 | ✅ | Transcription on demand (Soniox) | built; waiting for an API key |
-| 🔨 | Draft translations on demand | [next](https://github.com/PSchmitz-Valckenberg/maqati3/milestones) |
+| ✅ | Draft translations on demand (Claude Haiku) | built; waiting for an API key |
 | 🔨 | Review editor with a per-language claim and approval | [next](https://github.com/PSchmitz-Valckenberg/maqati3/milestones) |
 | 🗓️ | **Phase 1:** the public library: topics, scholars, synced transcript, deep links. No AI. | planned |
 | 🗓️ | **Phase 2:** search, an MCP server, and only then an answer tool | planned |
@@ -195,7 +196,7 @@ Setting up a real server, and the admin sign-in with Google, is described in
 | Frontend | Next.js (App Router), next-intl, Tailwind | Arabic, English, German; right to left by default for Arabic |
 | Dedup | SHA-256, Chromaprint by bit error rate, SimHash | Forwarded copies are never byte-identical |
 | Transcription | Soniox | Arabic with timestamps at ~$0.10 per audio hour; a bake-off on real material is still due |
-| Translation drafts | Claude Haiku, Batch API | Drafts only; a person approves every line |
+| Translation drafts | Claude Haiku | Drafts only; a person approves every line |
 | Hosting | One Hetzner VM, Docker Compose, Caddy | One developer has to operate it; nothing more |
 
 The reasoning, including everything that was rejected, is in

@@ -40,6 +40,8 @@ Tested with these exact files (`deploy/`): on 2026-10-25 locally (Arm, Chrome te
 | `SESSION_SECRET` | for admin dashboard | Signs the login cookie, min. 32 chars: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Changing it signs all admins out. |
 | `SONIOX_API_KEY` | for transcription | The provider's key. Empty: the dashboard's button answers 503 and the `worker` container does not start. |
 | `SONIOX_MODEL` | no | Defaults to `stt-async-v5`. |
+| `ANTHROPIC_API_KEY` | for translation | The key for Claude Haiku. Empty: the drafts button answers 503 and the worker takes transcriptions only. |
+| `TRANSLATION_MODEL` | no | Defaults to `claude-haiku-5-5`. |
 | `TRANSCRIPTION_DAILY_MINUTES` | no | Audio minutes that may go to the provider per day. Defaults to 600 (ten audio hours, about a dollar). Past that the button answers 429 until midnight. |
 | `UPLOAD_KEY_MAX_FAILURES` | no | Wrong upload keys per sender before blocking. Defaults to 30. |
 | `UPLOAD_KEY_WINDOW_MINUTES` | no | The window they are counted in. Defaults to 10. |
@@ -141,6 +143,30 @@ the reason is in `job.last_error`, and the entry can be asked for again afterwar
 **Never run against the real service** (we have no key): the call shapes come from
 Soniox's documentation and are tested against a fake transport. The first real run
 belongs on real material, before any of it is trusted.
+
+### Draft Translations on Demand
+
+Once an entry has an Arabic transcript it carries a **Draft translations** button. The
+button queues **one job per language**, English and German separately — if German fails,
+the English that already arrived is not paid for twice, and whoever has started on one
+language keeps it.
+
+* **The row count is identical in every language.** That is the hard rule: line 42 in
+  German belongs to the second line 42 was spoken. So the model answers in a fixed JSON
+  schema, every line goes up numbered, and the count is checked afterwards — and again
+  when the rows are written to the database. If it does not match, nothing is stored.
+* **A draft, not a translation.** Provenance `machine_translation`, state `draft_ready`.
+  None of it is public before a person has approved that language.
+* **Terms stay terms.** The model is told to keep ḥarām, makrūh, lā yanbaghī and the
+  like as terms rather than dissolving them into everyday words, and to make a ruling
+  neither weaker nor stronger than it is. Checking that is a person's job (issue #19),
+  not ours.
+* **The same daily budget** as transcription, counted in audio minutes.
+
+**Not the Batch API**, although `CLAUDE.md` names it: batch halves the price, drafting
+the whole corpus costs about nine euros, and a job that submits, remembers a batch id and
+comes back hours later would be a second shape of job to operate — for some four euros.
+If the corpus ever grows by two orders of magnitude, this is the first place to look again.
 
 ### Without Dashboard: The Server Inbox
 

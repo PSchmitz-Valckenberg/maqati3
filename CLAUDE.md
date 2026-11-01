@@ -30,8 +30,10 @@ database with a stand-in for Google; **not on the server yet**, and closed until
 Google OAuth client exist (`docs/BETRIEB.md`, "Der Admin-Bereich"). **Transcription on demand
 is built** (2026-10-31): a *Transcribe* button on a registered entry queues one job, a second
 process (`python -m maqati3 worker`, its own container in `deploy/compose.yml`) runs it through
-Soniox and stores the draft. Not built yet: draft translation on demand, and the review editor
-with the per-language claim.
+Soniox and stores the draft. **Draft translations are built too** (2026-11-01): once an entry has
+Arabic, a second button queues one job per untouched language and Claude Haiku drafts it line by
+line. Not built yet: the review editor with the per-language claim. Neither provider has ever
+been called for real — both keys are still missing.
 
 **Wrong upload keys are rate-limited** (2026-10-31, `backend/src/maqati3/api/ratelimit.py`):
 30 wrong keys per client in 10 minutes, then 429. Only wrong keys count; a missing or a
@@ -98,7 +100,7 @@ why. Short version:
 | Frontend | Next.js App Router, next-intl, Tailwind, Vidstack, TanStack Virtual |
 | Boundary | Generated OpenAPI client. The frontend never sees Python. |
 | ASR | Soniox (~$0.10/audio hour) |
-| Translation drafts / metadata | Claude Haiku via the Batch API |
+| Translation drafts / metadata | Claude Haiku (`claude-haiku-5-5`), Messages API — *not* Batch, see below |
 | Embeddings | BGE-M3 (MIT licence, strongest documented Arabic retrieval) |
 | Reranking | Voyage rerank-3-lite |
 | Synthesis | Claude Sonnet, `search_result` blocks with native citations |
@@ -204,7 +206,8 @@ and the reasoning for reversing the original no-upload-form decision: `docs/ARCH
    different recording, which audio fingerprinting never will
 7. Metadata generation (batch, cheap model): title, question, topic, `hukm` as an enum,
    `generality`, Qur'an and hadith references
-8. Draft translations DE + EN, line by line
+8. Draft translations DE + EN, line by line — **one job per language**, and the row
+   count is identical in every language or nothing is stored (see below)
 9. **→ appears as a task for an admin.** Steps 2–8 are automatic *once an admin has chosen
    the video* (see "The Admin Workflow" below): minutes, under 1 cent.
 10. Admin corrects in the dashboard's table editor — one row per moment, per language
@@ -246,6 +249,21 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    (`media.py`), which never touches the original and never moves the timeline. Nothing has yet run against
    the real service: the call shapes come from Soniox's documentation and are tested against a
    fake transport, so the first real run belongs on real material before it is trusted.
+
+   *Draft translations, built 2026-11-01:* a second button, offered only once the Arabic
+   exists, queues **one job per language** — English and German separately, so a German
+   failure does not redo the English, and a reviewer who has started on one language keeps
+   it. The rule the whole feature stands under is that **the row count is identical in every
+   language**: line 42 in German belongs to the second line 42 was spoken. The model is held
+   to it three ways — a fixed JSON schema so there is always a countable array, numbered
+   lines going up so a folded line leaves a gap, and a count check on the way back — and then
+   checked a second time in `db/translations.py`, where the rows actually attach to the
+   timeline. A mismatch is never repaired by padding or merging; it stores nothing. Drafts
+   are `machine_translation` and `draft_ready`, never public until a person approves that
+   language. **Not the Batch API**, although the table above names it: batch would halve a
+   nine-euro bill for the whole corpus and cost a second shape of job to operate — the
+   reasoning is in `asr/../translate/claude.py` and `docs/BETRIEB.md`. Revisit at a hundred
+   times the corpus.
 4. **Review happens in the dashboard**, in a table editor: one row per moment, audio synced
    to the row, edit the text, mark a language checked. No Google Docs, no Drive API.
 5. **Per language, with a claim.** The unit of work is one language of one entry. Whoever

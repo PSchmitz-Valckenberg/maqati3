@@ -40,6 +40,10 @@ services:
       # Speech to text. Empty closes the transcription button (503) and leaves the
       # worker below refusing to start, which is the state until a key exists.
       SONIOX_API_KEY: ${SONIOX_API_KEY:-}
+      # The model that drafts translations. Empty closes that button the same way.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Audio minutes per day for both together. Default 600.
+      TRANSCRIPTION_DAILY_MINUTES: ${TRANSCRIPTION_DAILY_MINUTES:-600}
     volumes:
       # The only copy of every upload until an admin registers it. Back this up.
       - staging:/var/lib/maqati3
@@ -60,6 +64,9 @@ services:
     environment:
       DATABASE_URL: postgresql://maqati3:${POSTGRES_PASSWORD}@db:5432/maqati3
       SONIOX_API_KEY: ${SONIOX_API_KEY:-}
+      # Optional here: without it the worker runs transcriptions only and leaves draft
+      # translations in the queue rather than failing them.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - staging:/var/lib/maqati3
     depends_on:
