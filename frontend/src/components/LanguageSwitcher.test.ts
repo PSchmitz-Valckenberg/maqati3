@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLocaleUrl, LANGUAGES } from './LanguageSwitcher';
+import { buildLocaleUrl, LANGUAGES, NAV_LABELS } from './LanguageSwitcher';
 
 describe('LanguageSwitcher buildLocaleUrl', () => {
   it('switches locale from /en/upload to /ar/upload', () => {
@@ -25,5 +25,11 @@ describe('LanguageSwitcher buildLocaleUrl', () => {
       { code: 'ar', label: 'العربية' },
       { code: 'de', label: 'Deutsch' },
     ]);
+  });
+
+  it('provides translated aria-labels for all supported languages', () => {
+    expect(NAV_LABELS.en).toBe('Language switcher');
+    expect(NAV_LABELS.de).toBe('Sprachauswahl');
+    expect(NAV_LABELS.ar).toBe('تبديل اللغة');
   });
 });

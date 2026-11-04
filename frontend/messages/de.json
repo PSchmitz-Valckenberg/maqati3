@@ -20,7 +20,8 @@
   },
   "common": {
     "loading": "Lädt",
-    "notFound": "Nicht gefunden"
+    "notFound": "Nicht gefunden",
+    "languageSwitcher": "Sprachauswahl"
   },
   "upload": {
     "title": "Aufnahmen hochladen",

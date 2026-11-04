@@ -20,7 +20,8 @@
   },
   "common": {
     "loading": "جارٍ التحميل",
-    "notFound": "غير موجود"
+    "notFound": "غير موجود",
+    "languageSwitcher": "تبديل اللغة"
   },
   "upload": {
     "title": "رفع التسجيلات",

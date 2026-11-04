@@ -1,14 +1,33 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { routing, type Locale } from '@/i18n/routing';
+import { useSyncExternalStore } from 'react';
+import { routing, type Locale } from '../i18n/routing';
 
 export const LANGUAGES: { code: Locale; label: string }[] = [
   { code: 'en', label: 'English' },
   { code: 'ar', label: 'العربية' },
   { code: 'de', label: 'Deutsch' },
 ];
+
+export const NAV_LABELS: Record<string, string> = {
+  en: 'Language switcher',
+  de: 'Sprachauswahl',
+  ar: 'تبديل اللغة',
+};
+
+function subscribeToHash(callback: () => void) {
+  window.addEventListener('hashchange', callback);
+  return () => window.removeEventListener('hashchange', callback);
+}
+
+function getHashSnapshot() {
+  return typeof window !== 'undefined' ? window.location.hash : '';
+}
+
+function getHashServerSnapshot() {
+  return '';
+}
 
 /**
  * Replace the locale prefix in a pathname while keeping the route and fragment intact.
@@ -24,21 +43,19 @@ export function buildLocaleUrl(pathname: string, newLocale: Locale, hash: string
   return segments.join('/') + cleanHash;
 }
 
-export default function LanguageSwitcher({ currentLocale }: { currentLocale: string }) {
+export default function LanguageSwitcher({
+  currentLocale,
+  label,
+}: {
+  currentLocale: string;
+  label?: string;
+}) {
   const pathname = usePathname() || '';
-  const [hash, setHash] = useState('');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setHash(window.location.hash);
-      const onHashChange = () => setHash(window.location.hash);
-      window.addEventListener('hashchange', onHashChange);
-      return () => window.removeEventListener('hashchange', onHashChange);
-    }
-  }, []);
+  const hash = useSyncExternalStore(subscribeToHash, getHashSnapshot, getHashServerSnapshot);
+  const navAriaLabel = label || NAV_LABELS[currentLocale] || NAV_LABELS.en;
 
   return (
-    <nav aria-label="Language switcher" className="flex items-center gap-1 text-sm">
+    <nav aria-label={navAriaLabel} className="flex items-center gap-1 text-sm">
       {LANGUAGES.map(({ code, label }) => {
         const isCurrent = code === currentLocale;
         const href = buildLocaleUrl(pathname, code, hash);
