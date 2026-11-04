@@ -126,6 +126,7 @@
     "log": {
       "title": "Aktivitätsprotokoll",
       "empty": "Noch keine Aktionen protokolliert.",
+      "failed": "Aktivitätsprotokoll konnte nicht geladen werden.",
       "who": "Admin",
       "what": "Aktion",
       "subject": "Gegenstand",

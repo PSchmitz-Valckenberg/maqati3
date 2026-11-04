@@ -126,6 +126,7 @@
     "log": {
       "title": "Action log",
       "empty": "No actions logged yet.",
+      "failed": "Could not load the action log.",
       "who": "Admin",
       "what": "Action",
       "subject": "Subject",

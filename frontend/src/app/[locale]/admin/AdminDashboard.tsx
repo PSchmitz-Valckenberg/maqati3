@@ -59,6 +59,7 @@ export default function AdminDashboard() {
   const [items, setItems] = useState<Item[]>([]);
   const [scholars, setScholars] = useState<Scholar[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logError, setLogError] = useState<boolean>(false);
   const search = useSyncExternalStore(
     subscribeToLocation,
     () => window.location.search,
@@ -67,14 +68,19 @@ export default function AdminDashboard() {
   const result = loginResult(search);
 
   const reload = useCallback(async () => {
-    const [list, people, logList] = await Promise.all([
+    setLogError(false);
+    const [list, people] = await Promise.all([
       fetchItems(),
       fetchScholars(),
-      fetchLog().catch(() => []),
     ]);
     setItems(list);
     setScholars(people);
-    setLogs(logList);
+    try {
+      const logList = await fetchLog();
+      setLogs(logList);
+    } catch {
+      setLogError(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -147,8 +153,13 @@ export default function AdminDashboard() {
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">{t('log.title')}</h2>
-        {logs.length === 0 && <p className="text-neutral-600 dark:text-neutral-400">{t('log.empty')}</p>}
-        {logs.length > 0 && (
+        {logError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            {t('log.failed')}
+          </p>
+        ) : logs.length === 0 ? (
+          <p className="text-neutral-600 dark:text-neutral-400">{t('log.empty')}</p>
+        ) : (
           <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800">
             <table className="w-full text-start text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
