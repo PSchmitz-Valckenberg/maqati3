@@ -14,6 +14,14 @@ export type Me = {
   translation: boolean;
 };
 
+export type LogEntry = {
+  at: string;
+  admin_email: string;
+  action: string;
+  subject: string | null;
+  detail: Record<string, unknown>;
+};
+
 /** A failed call, with the server's reason when it gave one (`not_waiting`, ...). */
 export class AdminError extends Error {
   constructor(
@@ -59,6 +67,8 @@ export const fetchMe = () => call<Me>('/api/v1/admin/me');
 export const fetchItems = () => call<Item[]>('/api/v1/admin/submissions');
 export const fetchScholars = () =>
   call<(Scholar & { entry_count: number })[]>('/api/v1/scholars');
+export const fetchLog = (limit: number = 20) =>
+  call<LogEntry[]>(`/api/v1/admin/log?limit=${encodeURIComponent(limit)}`);
 
 export const registerItem = (sha256: string, scholarId: string) =>
   post<{ entry_id: string }>(`/api/v1/admin/submissions/${encodeURIComponent(sha256)}/register`, {
