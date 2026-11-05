@@ -20,7 +20,8 @@
   },
   "common": {
     "loading": "Loading",
-    "notFound": "Not found"
+    "notFound": "Not found",
+    "languageSwitcher": "Language switcher"
   },
   "upload": {
     "title": "Upload recordings",
