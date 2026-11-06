@@ -425,3 +425,28 @@ def test_integration_the_first_translation_can_be_taken_once_the_arabic_is_appro
         PgReview(executor).move(entry_id, Lang.EN, ReviewState.IN_PROGRESS, YUSUF)
 
         assert state_of(connection, entry_id, "en") == ("in_progress", YUSUF)
+
+
+# ------------------------------------------------------------------ the dashboard's view
+
+
+def _item(executor: Any) -> Any:
+    return next(i for i in PgDesk(executor).items() if i.entry is not None)
+
+
+@requires_database
+def test_integration_an_entry_is_finished_only_when_every_language_is_approved() -> None:
+    # The dashboard moves finished entries out of the work list, so "finished" must not
+    # mean "the Arabic is approved": two languages would still be waiting for a person.
+    with migrated_schema() as (connection, executor):
+        entry_id = drafted_entry(executor, connection)
+        PgTranslations(executor).store(
+            entry_id, Lang.DE, ("Was ist das Urteil?", "Das ist erlaubt.")
+        )
+        assert _item(executor).all_approved is False
+
+        set_state(connection, entry_id, "en", "approved")
+        assert _item(executor).all_approved is False
+
+        set_state(connection, entry_id, "de", "approved")
+        assert _item(executor).all_approved is True
