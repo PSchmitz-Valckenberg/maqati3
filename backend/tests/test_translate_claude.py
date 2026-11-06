@@ -49,10 +49,21 @@ class Block:
 
 
 class Reply:
-    """What `messages.create` gives back: content blocks."""
+    """What `messages.create` gives back: content blocks.
 
-    def __init__(self, lines: list[str]) -> None:
-        self.content = [Block(json.dumps({"lines": lines}, ensure_ascii=False))]
+    Every line comes back with its number in a field of its own, counting from `start`
+    (the first line of a chunk is not always line 1); `numbers` overrides that to play a
+    model that miscounts.
+    """
+
+    def __init__(
+        self, lines: list[str], *, start: int = 1, numbers: list[int] | None = None
+    ) -> None:
+        numbered = numbers if numbers is not None else list(range(start, start + len(lines)))
+        payload = {
+            "lines": [{"n": n, "text": text} for n, text in zip(numbered, lines, strict=True)]
+        }
+        self.content = [Block(json.dumps(payload, ensure_ascii=False))]
 
 
 def translator(client: Any, **kwargs: Any) -> ClaudeTranslator:
@@ -118,9 +129,14 @@ def test_the_request_names_the_draft_model_and_the_two_languages() -> None:
     assert call["model"] == DEFAULT_MODEL
     system = str(call["system"]).lower()
     assert "arabic" in system and "english" in system
-    # The schema is what makes the row count answerable at all.
+    # The schema is what makes the row count answerable at all, and gives the number a
+    # field of its own so it cannot leak into the text (it did, on the first real run).
     schema = call["output_config"]["format"]["schema"]
+    item = schema["properties"]["lines"]["items"]
     assert schema["properties"]["lines"]["type"] == "array"
+    assert set(item["properties"]) == {"n", "text"}
+    assert item["properties"]["n"]["type"] == "integer"
+    assert item["properties"]["text"]["type"] == "string"
 
 
 def test_every_line_is_sent_with_its_number_so_none_can_be_dropped_silently() -> None:
@@ -128,10 +144,46 @@ def test_every_line_is_sent_with_its_number_so_none_can_be_dropped_silently() ->
 
     translator(client).translate(ARABIC, source=Lang.AR, target=Lang.EN)
 
-    sent = str(client.messages.calls[0]["messages"][0]["content"])
-    for number, line in enumerate(ARABIC, start=1):
-        assert f"{number}." in sent
-        assert line in sent
+    sent = json.loads(client.messages.calls[0]["messages"][0]["content"])
+    assert sent == [{"n": n, "text": line} for n, line in enumerate(ARABIC, start=1)]
+
+
+def test_the_number_of_a_later_chunk_continues_where_the_last_one_stopped() -> None:
+    lines = [f"سطر {i}" for i in range(6)]
+    client = FakeClient(
+        Reply([f"line {i}" for i in range(4)]), Reply(["line 4", "line 5"], start=5)
+    )
+
+    translator(client, chunk_lines=4).translate(lines, source=Lang.AR, target=Lang.EN)
+
+    second = json.loads(client.messages.calls[1]["messages"][0]["content"])
+    assert [item["n"] for item in second] == [5, 6]
+
+
+def test_a_reply_that_skips_a_number_is_refused_even_with_the_right_count() -> None:
+    # Three lines back, but 1, 2, 4: the model folded line 3 into its neighbour and
+    # invented a line to make up the count. Counting alone would have let it through.
+    client = FakeClient(Reply(ENGLISH, numbers=[1, 2, 4]))
+
+    with pytest.raises(LineCountMismatch):
+        translator(client).translate(ARABIC, source=Lang.AR, target=Lang.EN)
+
+
+def test_a_reply_out_of_order_is_refused() -> None:
+    client = FakeClient(Reply(ENGLISH, numbers=[1, 3, 2]))
+
+    with pytest.raises(LineCountMismatch):
+        translator(client).translate(ARABIC, source=Lang.AR, target=Lang.EN)
+
+
+def test_the_text_is_kept_exactly_as_the_model_wrote_it() -> None:
+    # No heuristic strips a leading "2." from a line: a speaker can open with a number,
+    # and a draft that quietly edits the text is worse than one that shows a stray digit.
+    client = FakeClient(Reply(["2. is what he said first", "and then more"]))
+
+    result = translator(client).translate(["اثنان", "ثم"], source=Lang.AR, target=Lang.EN)
+
+    assert result == ("2. is what he said first", "and then more")
 
 
 def test_a_long_transcript_goes_up_in_chunks_and_comes_back_in_order() -> None:
@@ -140,8 +192,8 @@ def test_a_long_transcript_goes_up_in_chunks_and_comes_back_in_order() -> None:
     lines = [f"سطر {i}" for i in range(10)]
     client = FakeClient(
         Reply([f"line {i}" for i in range(4)]),
-        Reply([f"line {i}" for i in range(4, 8)]),
-        Reply([f"line {i}" for i in range(8, 10)]),
+        Reply([f"line {i}" for i in range(4, 8)], start=5),
+        Reply([f"line {i}" for i in range(8, 10)], start=9),
     )
 
     result = translator(client, chunk_lines=4).translate(lines, source=Lang.AR, target=Lang.EN)
