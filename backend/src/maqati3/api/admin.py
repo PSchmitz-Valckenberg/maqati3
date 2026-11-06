@@ -40,6 +40,16 @@ from maqati3.api.desk import (
 from maqati3.api.routes import PREVIEW_TYPES, Store
 from maqati3.api.schemas import ScholarOut
 from maqati3.auth.identity import IdentityError, IdentityProvider
+from maqati3.domain import Lang, ReviewState
+from maqati3.register.states import InvalidTransition
+from maqati3.review import (
+    ClaimedByOther,
+    EmptyText,
+    NotInProgress,
+    Review,
+    ReviewView,
+    UnknownRow,
+)
 from maqati3.transcription import (
     AlreadyQueued,
     AlreadyTranscribed,
@@ -78,6 +88,12 @@ TRANSLATION_NOT_CONFIGURED = "translation_not_configured"
 NOTHING_TO_TRANSLATE = "nothing_to_translate"
 ALREADY_TRANSLATED = "already_translated"
 ARABIC_NOT_APPROVED = "arabic_not_approved"
+REVIEW_NOT_AVAILABLE = "review_not_available"
+UNKNOWN_ROW = "unknown_row"
+NOT_IN_PROGRESS = "not_in_progress"
+CLAIMED_BY_OTHER = "claimed_by_other"
+EMPTY_TEXT = "empty_text"
+INVALID_TRANSITION = "invalid_transition"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -98,6 +114,9 @@ class AdminConfig:
     transcription: bool = False
     #: Whether a translation model is configured. Same rule, separate key.
     translation: bool = False
+    #: The review editor's work. None closes its routes, like a missing key closes the
+    #: ones that spend money.
+    review: Review | None = None
 
     def __post_init__(self) -> None:
         if len(self.session_secret) < MIN_SESSION_SECRET:
@@ -239,6 +258,51 @@ class ScholarIn(BaseModel):
     id: Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=60)]
     name_ar: Text
     name_en: Text
+
+
+class RowOut(BaseModel):
+    idx: int
+    t_start_ms: int
+    t_end_ms: int | None
+    texts: dict[Lang, str]
+
+
+class LanguageOut(BaseModel):
+    state: ReviewState
+    assignee: str | None
+
+
+class ReviewOut(BaseModel):
+    entry_id: str
+    rows: list[RowOut]
+    languages: dict[Lang, LanguageOut]
+
+    @classmethod
+    def of(cls, view: ReviewView) -> ReviewOut:
+        return cls(
+            entry_id=view.entry_id,
+            rows=[
+                RowOut(idx=r.idx, t_start_ms=r.t_start_ms, t_end_ms=r.t_end_ms, texts=r.texts)
+                for r in view.rows
+            ],
+            languages={
+                lang: LanguageOut(state=s.state, assignee=s.assignee)
+                for lang, s in view.states.items()
+            },
+        )
+
+
+class EditIn(BaseModel):
+    #: Only length is bounded here; whether it may be empty is the review's rule.
+    text: Annotated[str, StringConstraints(max_length=5000)]
+
+
+class MoveIn(BaseModel):
+    to: ReviewState
+
+
+class StateOut(BaseModel):
+    state: ReviewState
 
 
 class StatusOut(BaseModel):
@@ -440,6 +504,65 @@ def translate(entry_id: str, config: Config, admin: Admin) -> DraftsOut:
         log.warning("drafts refused, daily budget spent: %s", exc)
         raise HTTPException(status_code=429, detail=DAILY_LIMIT_REACHED) from exc
     return DraftsOut(job_ids=job_ids)
+
+
+# ------------------------------------------------------------------ the review editor
+
+
+def reviewer(config: Config) -> Review:
+    if config.review is None:
+        raise HTTPException(status_code=503, detail=REVIEW_NOT_AVAILABLE)
+    return config.review
+
+
+Reviewing = Annotated[Review, Depends(reviewer)]
+
+
+@router.get("/entries/{entry_id}/review")
+def review_entry(entry_id: str, review: Reviewing, admin: Admin) -> ReviewOut:
+    """Every row of an entry with its text in each language, and where each language stands."""
+    view = review.view(entry_id)
+    if view is None:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY)
+    return ReviewOut.of(view)
+
+
+@router.put("/entries/{entry_id}/rows/{idx}/{lang}", dependencies=Mutating)
+def edit_row(
+    entry_id: str, idx: int, lang: Lang, body: EditIn, review: Reviewing, admin: Admin
+) -> StatusOut:
+    """Replace one row's text. The editor is always the signed-in admin, never a name sent."""
+    try:
+        review.edit_text(entry_id, idx, lang, body.text, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except UnknownRow as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ROW) from exc
+    except NotInProgress as exc:
+        raise HTTPException(status_code=409, detail=NOT_IN_PROGRESS) from exc
+    except ClaimedByOther as exc:
+        raise HTTPException(status_code=409, detail=CLAIMED_BY_OTHER) from exc
+    except EmptyText as exc:
+        raise HTTPException(status_code=422, detail=EMPTY_TEXT) from exc
+    return StatusOut(status="saved")
+
+
+@router.post("/entries/{entry_id}/languages/{lang}/state", dependencies=Mutating)
+def move_language(
+    entry_id: str, lang: Lang, body: MoveIn, review: Reviewing, admin: Admin
+) -> StateOut:
+    """Take a language, hand it on, approve it or send it back: one step of the machine."""
+    try:
+        new = review.move(entry_id, lang, body.to, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except InvalidTransition as exc:
+        raise HTTPException(status_code=409, detail=INVALID_TRANSITION) from exc
+    except ClaimedByOther as exc:
+        raise HTTPException(status_code=409, detail=CLAIMED_BY_OTHER) from exc
+    except ArabicNotApproved as exc:
+        raise HTTPException(status_code=409, detail=ARABIC_NOT_APPROVED) from exc
+    return StateOut(state=new)
 
 
 @router.post("/scholars", dependencies=Mutating)

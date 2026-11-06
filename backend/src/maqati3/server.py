@@ -24,6 +24,7 @@ from maqati3.asr.soniox import DEFAULT_MODEL as SONIOX_MODEL
 from maqati3.auth.google import GoogleIdentityProvider
 from maqati3.db.admin import PgAdmins, PgDesk
 from maqati3.db.library import PgLibraryRepository
+from maqati3.db.review import PgReview
 from maqati3.db.sql import PooledExecutor
 from maqati3.db.submissions import PgFingerprintIndex, PgKnownHashes, PgSubmissions
 from maqati3.dedup.chromaprint import ChromaprintExtractor
@@ -140,6 +141,7 @@ def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | 
         session_secret=settings.session_secret,
         transcription=bool(settings.soniox_api_key.strip()),
         translation=bool(settings.anthropic_api_key.strip()),
+        review=PgReview(executor),
     )
 
 

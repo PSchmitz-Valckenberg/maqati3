@@ -105,7 +105,9 @@ def drafted_entry(executor: Any, connection: Any) -> str:
     return entry_id
 
 
-def set_state(connection: Any, entry_id: str, lang: str, state: str, who: str | None = None) -> None:
+def set_state(
+    connection: Any, entry_id: str, lang: str, state: str, who: str | None = None
+) -> None:
     connection.execute(
         "UPDATE entry_language SET state = %s, assignee = %s WHERE entry_id = %s AND lang = %s",
         (state, who, entry_id, lang),
@@ -237,9 +239,8 @@ def test_integration_a_row_is_never_emptied(text: str) -> None:
 
 @requires_database
 def test_integration_an_edit_of_an_unknown_entry_is_refused() -> None:
-    with migrated_schema() as (_, executor):
-        with pytest.raises(UnknownEntry):
-            PgReview(executor).edit_text("nobody-000001", 0, Lang.AR, "x", YUSUF)
+    with migrated_schema() as (_, executor), pytest.raises(UnknownEntry):
+        PgReview(executor).edit_text("nobody-000001", 0, Lang.AR, "x", YUSUF)
 
 
 # ------------------------------------------------------------------ editing: allowed
@@ -310,9 +311,7 @@ def test_integration_an_edit_never_touches_the_timeline() -> None:
         ("needs_fixes", "approved"),
     ],
 )
-def test_integration_a_language_moves_only_along_the_state_machine(
-    start: str, target: str
-) -> None:
+def test_integration_a_language_moves_only_along_the_state_machine(start: str, target: str) -> None:
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
         set_state(connection, entry_id, "ar", start, YUSUF)
@@ -365,9 +364,8 @@ def test_integration_a_translation_waits_for_the_approved_arabic(target: str) ->
 
 @requires_database
 def test_integration_a_move_on_an_unknown_entry_is_refused() -> None:
-    with migrated_schema() as (_, executor):
-        with pytest.raises(UnknownEntry):
-            PgReview(executor).move("nobody-000001", Lang.AR, ReviewState.IN_PROGRESS, YUSUF)
+    with migrated_schema() as (_, executor), pytest.raises(UnknownEntry):
+        PgReview(executor).move("nobody-000001", Lang.AR, ReviewState.IN_PROGRESS, YUSUF)
 
 
 # ------------------------------------------------------------------ moving: allowed
