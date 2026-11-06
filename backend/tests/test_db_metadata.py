@@ -11,14 +11,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from test_db_review import (
-    YUSUF,
-    migrated_schema,
-    requires_database,
-    revisions,
-    set_state,
-    transcribed_entry,
-)
 
 from maqati3.db.metadata import PgMetadata
 from maqati3.metadata import (
@@ -29,6 +21,14 @@ from maqati3.metadata import (
     MetadataState,
 )
 from maqati3.transcription import UnknownEntry
+from test_db_review import (
+    YUSUF,
+    migrated_schema,
+    requires_database,
+    revisions,
+    set_state,
+    transcribed_entry,
+)
 
 DRAFT = MetadataDraft(
     title="On what is forbidden and on kindness to one's mother",
