@@ -127,6 +127,12 @@ const ERROR_KEYS: Record<string, string> = {
   nothing_to_translate: 'nothingToTranslate',
   already_translated: 'alreadyTranslated',
   arabic_not_approved: 'arabicNotApproved',
+  unknown_row: 'unknownRow',
+  not_in_progress: 'notInProgress',
+  claimed_by_other: 'claimedByOther',
+  empty_text: 'emptyText',
+  invalid_transition: 'invalidTransition',
+  review_not_available: 'reviewNotAvailable',
   network: 'network',
 };
 

@@ -148,7 +148,13 @@
       "alreadyTranslated": "Beide Sprachen haben schon einen Entwurf, oder jemand arbeitet daran.",
       "arabicNotApproved": "Die Entwürfe gibt es erst, wenn jemand das Arabisch geprüft und freigegeben hat.",
       "network": "Die Verbindung wurde unterbrochen.",
-      "generic": "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
+      "generic": "Etwas ist schiefgegangen. Bitte versuch es noch einmal.",
+      "unknownRow": "Diese Zeile gibt es nicht. Zeilen werden nie hinzugefügt oder entfernt.",
+      "notInProgress": "Übernimm zuerst diese Sprache. Nur eine Sprache, an der du arbeitest, lässt sich bearbeiten.",
+      "claimedByOther": "Jemand anderes arbeitet an dieser Sprache.",
+      "emptyText": "Eine Zeile darf nicht leer bleiben. Ihre Sekunde gehört weiter zu ihr.",
+      "invalidTransition": "Dieser Schritt ist von hier aus nicht möglich. Die Seite wurde neu geladen.",
+      "reviewNotAvailable": "Der Prüf-Editor ist auf diesem Server nicht verfügbar."
     },
     "play": "Abspielen",
     "log": {
@@ -159,6 +165,38 @@
       "what": "Aktion",
       "subject": "Gegenstand",
       "when": "Zeit"
+    },
+    "review": {
+      "open": "Prüfen",
+      "title": "Prüfen",
+      "back": "Zurück zur Übersicht",
+      "loading": "Lädt…",
+      "times": "Zeiten anzeigen",
+      "languageLabel": "Sprache",
+      "rowLabel": "Zeile {n}",
+      "state": {
+        "not_started": "Nicht begonnen",
+        "draft_ready": "Entwurf bereit",
+        "in_progress": "In Arbeit",
+        "awaiting_review": "Wartet auf Kontrolle",
+        "needs_fixes": "Muss korrigiert werden",
+        "approved": "Freigegeben"
+      },
+      "takenBy": "In Arbeit: {name}",
+      "mine": "Du arbeitest daran",
+      "move": {
+        "take": "Übernehmen",
+        "handOn": "Zur Kontrolle weitergeben",
+        "approve": "Freigeben",
+        "sendBack": "Zurückgeben"
+      },
+      "approveConfirm": "Diese Sprache freigeben? Danach lässt sie sich nicht mehr bearbeiten.",
+      "waitingForArabic": "Prüfe und gib zuerst das Arabische frei. Danach lassen sich die Übersetzungen übernehmen.",
+      "readOnly": "Übernimm diese Sprache, um sie zu bearbeiten.",
+      "saving": "Speichert…",
+      "saved": "Gespeichert",
+      "unsaved": "Ungespeicherte Änderungen",
+      "hint": "Eine Zeile pro Moment. Klick auf eine Zeile spielt ab dort. Zeilen werden bearbeitet, nie hinzugefügt oder entfernt."
     }
   }
 }

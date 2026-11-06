@@ -32,8 +32,8 @@ is built** (2026-10-31): a *Transcribe* button on a registered entry queues one 
 process (`python -m maqati3 worker`, its own container in `deploy/compose.yml`) runs it through
 Soniox and stores the draft. **Draft translations are built too** (2026-11-01): once an entry has
 Arabic, a second button queues one job per untouched language and Claude Haiku drafts it line by
-line. Not built yet: the review editor with the per-language claim. Neither provider has ever
-been called for real — both keys are still missing.
+line. **The review editor is built too** (2026-11-06, first version): see "The Admin Workflow", step 4.
+Both providers have now run for real, locally, on one 80-second clip.
 
 **Wrong upload keys are rate-limited** (2026-10-31, `backend/src/maqati3/api/ratelimit.py`):
 30 wrong keys per client in 10 minutes, then 429. Only wrong keys count; a missing or a
@@ -272,6 +272,23 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    times the corpus.
 4. **Review happens in the dashboard**, in a table editor: one row per moment, audio synced
    to the row, edit the text, mark a language checked. No Google Docs, no Drive API.
+
+   *Built 2026-11-06 (first version, `/{locale}/admin/review/<entry>?m=<sha256>`):* one card per
+   moment with the player above it, the row that is playing highlighted, a click on a row plays
+   from there, times hidden unless asked for (decided: the reviewer reads text, the timestamps
+   stay in the data). The rules are in `maqati3/review.py` and `db/review.py`, each with a test
+   for the blocked case: **rows are edited, never added, removed or moved** (an edit is an
+   UPDATE of an existing `segment_text`; an unknown row or a language with no text is refused);
+   **a row is never emptied**; **no log row, no edit** (`revision_log`, same transaction, with
+   before and after; an edit that changes nothing writes nothing); a language is **edited only
+   while `in_progress` and only by the person who took it**; it moves **only along
+   `register.states`**, a draft is made by the worker and never by a click, and **no
+   translation is taken before the Arabic is approved**. Edited text becomes provenance
+   `human` and its `text_norm` is cleared. The actor is always the signed-in admin, never a
+   name in the request. Not built yet: virtualised list (fine up to a few hundred rows),
+   `span_role` per row (#26), takeover of an abandoned claim (#24, undecided: for now there is
+   none), the revision log for attribution changes (#27 covers only text and state so far),
+   and a browser test of the page itself (tested through the API and the logic only).
 5. **Per language, with a claim.** The unit of work is one language of one entry. Whoever
    takes it makes it visible to everyone as "in progress: <name>", so nobody does the same
    work twice. An admin without German or English reviews Arabic only; the other languages

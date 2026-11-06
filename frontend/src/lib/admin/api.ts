@@ -4,6 +4,7 @@
  * that are really the dashboard's own.
  */
 import type { Item, Scholar } from './logic';
+import type { Lang, Review, ReviewState } from './review';
 
 /** `transcription` says whether this server has a speech-to-text provider; without
  * one the route answers 503 and the page does not offer the button. */
@@ -63,6 +64,10 @@ function post<T>(path: string, body?: unknown): Promise<T> {
   });
 }
 
+function put<T>(path: string, body: unknown): Promise<T> {
+  return call<T>(path, { method: 'PUT', headers: CHANGE, body: JSON.stringify(body) });
+}
+
 export const fetchMe = () => call<Me>('/api/v1/admin/me');
 export const fetchItems = () => call<Item[]>('/api/v1/admin/submissions');
 export const fetchScholars = () =>
@@ -88,6 +93,19 @@ export const requestTranscription = (entryId: string) =>
 /** Queue a draft of every language still untouched. One job per language. */
 export const requestTranslation = (entryId: string) =>
   post<{ job_ids: number[] }>(`/api/v1/admin/entries/${encodeURIComponent(entryId)}/translate`);
+
+const entryPath = (entryId: string) => `/api/v1/admin/entries/${encodeURIComponent(entryId)}`;
+
+/** Every row of an entry with its text in each language, and where each language stands. */
+export const fetchReview = (entryId: string) => call<Review>(`${entryPath(entryId)}/review`);
+
+/** Replace one row's text. The server refuses unless this admin has taken the language. */
+export const saveRow = (entryId: string, idx: number, lang: Lang, text: string) =>
+  put<{ status: string }>(`${entryPath(entryId)}/rows/${idx}/${lang}`, { text });
+
+/** Take a language, hand it on, approve it or send it back: one step of the state machine. */
+export const moveLanguage = (entryId: string, lang: Lang, to: ReviewState) =>
+  post<{ state: ReviewState }>(`${entryPath(entryId)}/languages/${lang}/state`, { to });
 
 export const signOut = () => post<{ status: string }>('/api/v1/admin/auth/logout');
 

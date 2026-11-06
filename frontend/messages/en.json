@@ -148,7 +148,13 @@
       "alreadyTranslated": "Both languages already have a draft, or someone is working on them.",
       "arabicNotApproved": "The drafts wait until a person has checked and approved the Arabic.",
       "network": "The connection was interrupted.",
-      "generic": "Something went wrong. Please try again."
+      "generic": "Something went wrong. Please try again.",
+      "unknownRow": "That row is not there. Rows are never added or removed.",
+      "notInProgress": "Take this language first. Only a language you are working on can be edited.",
+      "claimedByOther": "Someone else is working on this language.",
+      "emptyText": "A row cannot be left empty. Its second still belongs to it.",
+      "invalidTransition": "That step is not possible from where this language stands. The page was reloaded.",
+      "reviewNotAvailable": "The review editor is not available on this server."
     },
     "play": "Play",
     "log": {
@@ -159,6 +165,38 @@
       "what": "Action",
       "subject": "Subject",
       "when": "Time"
+    },
+    "review": {
+      "open": "Review",
+      "title": "Review",
+      "back": "Back to the dashboard",
+      "loading": "Loading…",
+      "times": "Show times",
+      "languageLabel": "Language",
+      "rowLabel": "Row {n}",
+      "state": {
+        "not_started": "Not started",
+        "draft_ready": "Draft ready",
+        "in_progress": "In progress",
+        "awaiting_review": "Waiting for a check",
+        "needs_fixes": "Needs fixes",
+        "approved": "Approved"
+      },
+      "takenBy": "In progress: {name}",
+      "mine": "You are working on this",
+      "move": {
+        "take": "Take it",
+        "handOn": "Hand on for checking",
+        "approve": "Approve",
+        "sendBack": "Send back"
+      },
+      "approveConfirm": "Approve this language? Once approved it can no longer be edited.",
+      "waitingForArabic": "Check and approve the Arabic first. The translations can be taken afterwards.",
+      "readOnly": "Take this language to edit it.",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "unsaved": "Unsaved changes",
+      "hint": "One row per moment. Click a row to play from there. Rows are edited, never added or removed."
     }
   }
 }

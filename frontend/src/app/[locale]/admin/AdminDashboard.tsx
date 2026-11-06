@@ -579,6 +579,14 @@ function RegisteredCard({
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('translateHint')}</p>
         </div>
       )}
+      {entryId !== null && item.transcript === 'ready' && (
+        <a
+          className={`${PRIMARY} inline-block`}
+          href={`/${locale}/admin/review/${encodeURIComponent(entryId)}?m=${item.sha256}`}
+        >
+          {t('review.open')}
+        </a>
+      )}
       {error && (
         <p className="text-sm text-red-700 dark:text-red-300">{t(`error.${errorKey(error)}`)}</p>
       )}
