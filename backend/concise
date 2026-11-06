@@ -1,9 +1,0 @@
-E501 Line too long (101 > 100)
-   --> src/maqati3/api/admin.py:313:101
-    |
-311 |     title: Annotated[str, StringConstraints(max_length=300)]
-312 |     question: Annotated[str, StringConstraints(max_length=1000)]
-313 |     keywords: Annotated[list[Annotated[str, StringConstraints(max_length=80)]], Field(max_length=20)]
-    |                                                                                                     ^
-
-Found 4 errors (3 fixed, 1 remaining).

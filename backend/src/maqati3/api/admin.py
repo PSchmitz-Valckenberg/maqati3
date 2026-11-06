@@ -310,7 +310,9 @@ class MetadataOut(BaseModel):
 class MetadataIn(BaseModel):
     title: Annotated[str, StringConstraints(max_length=300)]
     question: Annotated[str, StringConstraints(max_length=1000)]
-    keywords: Annotated[list[Annotated[str, StringConstraints(max_length=80)]], Field(max_length=20)]
+    keywords: Annotated[
+        list[Annotated[str, StringConstraints(max_length=80)]], Field(max_length=20)
+    ]
 
 
 class ReviewOut(BaseModel):
