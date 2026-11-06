@@ -5,7 +5,9 @@ import en from '../../../messages/en.json';
 import { errorKey } from './logic';
 import {
   availableMoves,
+  canDraftMetadata,
   canEdit,
+  keywordsFromText,
   isDirty,
   languageOrder,
   rowCues,
@@ -138,5 +140,43 @@ describe('what the server refuses with', () => {
     const keys = (m: typeof en) => Object.keys((m.admin as Record<string, unknown>).review as object).sort();
     expect(keys(de)).toEqual(keys(en));
     expect(keys(ar)).toEqual(keys(en));
+  });
+});
+
+describe('metadata', () => {
+  it('a draft is offered once the Arabic is approved and nothing exists yet', () => {
+    expect(canDraftMetadata({ available: true, arabicApproved: true, state: 'none' })).toBe(true);
+  });
+
+  it.each([
+    [{ available: false, arabicApproved: true, state: 'none' as const }],
+    [{ available: true, arabicApproved: false, state: 'none' as const }],
+    [{ available: true, arabicApproved: true, state: 'draft' as const }],
+    [{ available: true, arabicApproved: true, state: 'confirmed' as const }],
+  ])('no draft is offered when the server would refuse it: %j', (input) => {
+    expect(canDraftMetadata(input)).toBe(false);
+  });
+
+  it('keywords are typed with commas and come out tidy', () => {
+    expect(keywordsFromText(' Family, mother,, family ,KINDNESS ')).toEqual([
+      'family',
+      'mother',
+      'kindness',
+    ]);
+    expect(keywordsFromText('')).toEqual([]);
+  });
+
+  it('the server refusals are told in words in every language', () => {
+    for (const [code, key] of [
+      ['already_drafted', 'alreadyDrafted'],
+      ['metadata_failed', 'metadataFailed'],
+      ['empty_title', 'emptyTitle'],
+      ['metadata_not_configured', 'metadataNotConfigured'],
+    ]) {
+      expect(errorKey(code)).toBe(key);
+      for (const m of [en, de, ar]) {
+        expect((m.admin.error as Record<string, string>)[key]).toBeTruthy();
+      }
+    }
   });
 });
