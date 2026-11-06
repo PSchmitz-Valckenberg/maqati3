@@ -271,6 +271,7 @@ def test_an_admin_on_the_list_is_signed_in_and_sent_on() -> None:
         "name": "Yusuf",
         "transcription": False,
         "translation": False,
+        "metadata": False,
     }
 
 

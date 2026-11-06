@@ -11,18 +11,6 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from test_api_admin import (
-    CSRF,
-    PUBLIC_URL,
-    SECRET,
-    FakeAdmins,
-    FakeDesk,
-    FakeProvider,
-    FakeRepository,
-    FakeStore,
-    login,
-)
-from test_api_review import ENTRY, FakeReview
 
 from maqati3.api.admin import AdminConfig
 from maqati3.api.app import create_app
@@ -36,6 +24,18 @@ from maqati3.metadata import (
     MetadataState,
 )
 from maqati3.transcription import UnknownEntry
+from test_api_admin import (
+    CSRF,
+    PUBLIC_URL,
+    SECRET,
+    FakeAdmins,
+    FakeDesk,
+    FakeProvider,
+    FakeRepository,
+    FakeStore,
+    login,
+)
+from test_api_review import ENTRY, FakeReview
 
 DRAFT = MetadataDraft("A title", "A question?", ("family", "mother"))
 

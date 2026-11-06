@@ -25,7 +25,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
 
 from maqati3.api.desk import (
     Admins,
@@ -41,6 +41,14 @@ from maqati3.api.routes import PREVIEW_TYPES, Store
 from maqati3.api.schemas import ScholarOut
 from maqati3.auth.identity import IdentityError, IdentityProvider
 from maqati3.domain import Lang, ReviewState
+from maqati3.metadata import (
+    AlreadyDrafted,
+    EmptyTitle,
+    EntryMetadata,
+    Metadata,
+    MetadataDrafter,
+    MetadataError,
+)
 from maqati3.register.states import InvalidTransition
 from maqati3.review import (
     ClaimedByOther,
@@ -94,6 +102,10 @@ NOT_IN_PROGRESS = "not_in_progress"
 CLAIMED_BY_OTHER = "claimed_by_other"
 EMPTY_TEXT = "empty_text"
 INVALID_TRANSITION = "invalid_transition"
+METADATA_NOT_CONFIGURED = "metadata_not_configured"
+ALREADY_DRAFTED = "already_drafted"
+METADATA_FAILED = "metadata_failed"
+EMPTY_TITLE = "empty_title"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -117,6 +129,10 @@ class AdminConfig:
     #: The review editor's work. None closes its routes, like a missing key closes the
     #: ones that spend money.
     review: Review | None = None
+    #: Where an entry's title, question and keywords live, and the model that drafts
+    #: them. Without the model the draft route answers 503; without the store, no metadata.
+    metadata: Metadata | None = None
+    drafter: MetadataDrafter | None = None
 
     def __post_init__(self) -> None:
         if len(self.session_secret) < MIN_SESSION_SECRET:
@@ -187,6 +203,7 @@ class AdminOut(BaseModel):
     #: What this dashboard can offer, so the page does not show a button that 503s.
     transcription: bool = False
     translation: bool = False
+    metadata: bool = False
 
 
 class RegisteredOut(BaseModel):
@@ -274,14 +291,38 @@ class LanguageOut(BaseModel):
     assignee: str | None
 
 
+class MetadataOut(BaseModel):
+    title: str
+    question: str
+    keywords: list[str]
+    state: str
+
+    @classmethod
+    def of(cls, metadata: EntryMetadata) -> MetadataOut:
+        return cls(
+            title=metadata.title,
+            question=metadata.question,
+            keywords=list(metadata.keywords),
+            state=metadata.state.value,
+        )
+
+
+class MetadataIn(BaseModel):
+    title: Annotated[str, StringConstraints(max_length=300)]
+    question: Annotated[str, StringConstraints(max_length=1000)]
+    keywords: Annotated[list[Annotated[str, StringConstraints(max_length=80)]], Field(max_length=20)]
+
+
 class ReviewOut(BaseModel):
     entry_id: str
     rows: list[RowOut]
     languages: dict[Lang, LanguageOut]
+    metadata: MetadataOut | None = None
 
     @classmethod
-    def of(cls, view: ReviewView) -> ReviewOut:
+    def of(cls, view: ReviewView, metadata: EntryMetadata | None = None) -> ReviewOut:
         return cls(
+            metadata=None if metadata is None else MetadataOut.of(metadata),
             entry_id=view.entry_id,
             rows=[
                 RowOut(idx=r.idx, t_start_ms=r.t_start_ms, t_end_ms=r.t_end_ms, texts=r.texts)
@@ -398,6 +439,7 @@ def me(admin: Admin, config: Config) -> AdminOut:
         name=admin.name,
         transcription=config.transcription,
         translation=config.translation,
+        metadata=config.metadata is not None and config.drafter is not None,
     )
 
 
@@ -521,12 +563,15 @@ Reviewing = Annotated[Review, Depends(reviewer)]
 
 
 @router.get("/entries/{entry_id}/review")
-def review_entry(entry_id: str, review: Reviewing, admin: Admin) -> ReviewOut:
+def review_entry(
+    entry_id: str, review: Reviewing, config: Config, admin: Admin
+) -> ReviewOut:
     """Every row of an entry with its text in each language, and where each language stands."""
     view = review.view(entry_id)
     if view is None:
         raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY)
-    return ReviewOut.of(view)
+    metadata = config.metadata.get(entry_id) if config.metadata is not None else None
+    return ReviewOut.of(view, metadata)
 
 
 @router.put("/entries/{entry_id}/rows/{idx}/{lang}", dependencies=Mutating)
@@ -565,6 +610,46 @@ def move_language(
     except ArabicNotApproved as exc:
         raise HTTPException(status_code=409, detail=ARABIC_NOT_APPROVED) from exc
     return StateOut(state=new)
+
+
+@router.post("/entries/{entry_id}/metadata/draft", dependencies=Mutating)
+def draft_metadata(entry_id: str, config: Config, admin: Admin) -> StatusOut:
+    """Ask the model for a title, question and keywords, from the approved Arabic only.
+
+    The model is asked only after every gate has said yes: no gate passed, no money spent.
+    """
+    if config.metadata is None or config.drafter is None:
+        raise HTTPException(status_code=503, detail=METADATA_NOT_CONFIGURED)
+    try:
+        lines = config.metadata.lines_to_draft_from(entry_id)
+        draft = config.drafter.draft(lines)
+        config.metadata.store_draft(entry_id, draft, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except ArabicNotApproved as exc:
+        raise HTTPException(status_code=409, detail=ARABIC_NOT_APPROVED) from exc
+    except AlreadyDrafted as exc:
+        raise HTTPException(status_code=409, detail=ALREADY_DRAFTED) from exc
+    except MetadataError as exc:
+        log.warning("metadata draft failed: %s", exc)
+        raise HTTPException(status_code=502, detail=METADATA_FAILED) from exc
+    return StatusOut(status="drafted")
+
+
+@router.put("/entries/{entry_id}/metadata", dependencies=Mutating)
+def save_metadata(entry_id: str, body: MetadataIn, config: Config, admin: Admin) -> StatusOut:
+    """A person's own words for the title, question and keywords."""
+    if config.metadata is None:
+        raise HTTPException(status_code=503, detail=METADATA_NOT_CONFIGURED)
+    try:
+        config.metadata.save(
+            entry_id, body.title, body.question, tuple(body.keywords), admin.email
+        )
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except EmptyTitle as exc:
+        raise HTTPException(status_code=422, detail=EMPTY_TITLE) from exc
+    return StatusOut(status="saved")
 
 
 @router.post("/scholars", dependencies=Mutating)

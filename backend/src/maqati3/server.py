@@ -24,10 +24,12 @@ from maqati3.asr.soniox import DEFAULT_MODEL as SONIOX_MODEL
 from maqati3.auth.google import GoogleIdentityProvider
 from maqati3.db.admin import PgAdmins, PgDesk
 from maqati3.db.library import PgLibraryRepository
+from maqati3.db.metadata import PgMetadata
 from maqati3.db.review import PgReview
 from maqati3.db.sql import PooledExecutor
 from maqati3.db.submissions import PgFingerprintIndex, PgKnownHashes, PgSubmissions
 from maqati3.dedup.chromaprint import ChromaprintExtractor
+from maqati3.metadata_claude import ClaudeMetadata
 from maqati3.staging import DEFAULT_MAX_BYTES, LocalUploadStore
 from maqati3.transcription import DEFAULT_DAILY_LIMIT_SECONDS
 from maqati3.translate.claude import DEFAULT_MODEL as TRANSLATION_MODEL
@@ -142,6 +144,12 @@ def admin_config(settings: Settings, executor: PooledExecutor) -> AdminConfig | 
         transcription=bool(settings.soniox_api_key.strip()),
         translation=bool(settings.anthropic_api_key.strip()),
         review=PgReview(executor),
+        metadata=PgMetadata(executor),
+        drafter=(
+            ClaudeMetadata(settings.anthropic_api_key, model=settings.translation_model)
+            if settings.anthropic_api_key.strip()
+            else None
+        ),
     )
 
 
