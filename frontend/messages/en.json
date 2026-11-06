@@ -131,7 +131,8 @@
       "queued": "Transcription requested — waiting for a worker.",
       "running": "Transcribing…",
       "failed": "The transcription did not work: {reason}",
-      "ready": "Arabic draft ready for review."
+      "ready": "Arabic draft ready for review.",
+      "approved": "Arabic approved."
     },
     "error": {
       "notWaiting": "Someone has already dealt with this one. The list was reloaded.",
@@ -199,6 +200,9 @@
       "hint": "One row per moment. Click a row to play from there. Rows are edited, never added or removed.",
       "requestDrafts": "Request English and German drafts",
       "draftsQueued": "Drafts requested. They appear here in a moment."
+    },
+    "finished": {
+      "title": "Finished ({count})"
     }
   }
 }

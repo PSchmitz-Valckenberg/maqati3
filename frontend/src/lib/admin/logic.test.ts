@@ -31,9 +31,22 @@ function item(overrides: Partial<Item> = {}): Item {
     translations: 'none',
     translations_error: null,
     arabic_approved: false,
+    all_approved: false,
     ...overrides,
   };
 }
+
+describe('finished entries', () => {
+  it('leave the work list once every language is approved', () => {
+    const done = item({ sha256: 'd', status: 'registered', all_approved: true });
+    const open = item({ sha256: 'o', status: 'registered', arabic_approved: true });
+
+    const groups = groupItems([done, open]);
+
+    expect(groups.finished.map((i) => i.sha256)).toEqual(['d']);
+    expect(groups.registered.map((i) => i.sha256)).toEqual(['o']);
+  });
+});
 
 describe('groupItems', () => {
   it('splits what waits from what is registered and keeps the order it was given', () => {

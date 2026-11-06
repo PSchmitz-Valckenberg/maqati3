@@ -209,6 +209,7 @@ class DashboardItemOut(BaseModel):
     translations: TranscriptState = TranscriptState.NONE
     translations_error: str | None = None
     arabic_approved: bool = False
+    all_approved: bool = False
 
     @classmethod
     def of(cls, item: DashboardItem) -> DashboardItemOut:
@@ -239,6 +240,7 @@ class DashboardItemOut(BaseModel):
             translations=item.translations,
             translations_error=item.translations_error,
             arabic_approved=item.arabic_approved,
+            all_approved=item.all_approved,
         )
 
 

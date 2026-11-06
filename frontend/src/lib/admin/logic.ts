@@ -33,12 +33,22 @@ export type Item = {
   translations_error: string | null;
   /** Whether a person has approved the Arabic. The drafts wait for it. */
   arabic_approved: boolean;
+  /** Every language approved: nothing is left for a reviewer to do. */
+  all_approved: boolean;
 };
 
-export function groupItems(items: Item[]): { waiting: Item[]; registered: Item[] } {
+/** Waiting for a decision, registered and still being worked on, and finished: every
+ * language approved, so nothing is left to do and the work list stays short. */
+export function groupItems(items: Item[]): {
+  waiting: Item[];
+  registered: Item[];
+  finished: Item[];
+} {
+  const registered = items.filter((i) => i.status === 'registered');
   return {
     waiting: items.filter((i) => i.status === 'waiting'),
-    registered: items.filter((i) => i.status === 'registered'),
+    registered: registered.filter((i) => !i.all_approved),
+    finished: registered.filter((i) => i.all_approved),
   };
 }
 

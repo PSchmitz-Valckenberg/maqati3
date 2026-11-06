@@ -79,6 +79,9 @@ class DashboardItem:
     translations_error: str | None = None
     #: Whether a person has checked the Arabic. The drafts wait for it.
     arabic_approved: bool = False
+    #: Every language approved: nothing is left for a reviewer, so the dashboard moves
+    #: the entry out of the work list.
+    all_approved: bool = False
 
 
 class Admins(Protocol):

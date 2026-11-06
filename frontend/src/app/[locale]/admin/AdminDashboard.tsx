@@ -120,7 +120,7 @@ export default function AdminDashboard() {
   if (view.kind === 'failed') return <Notice>{t(`error.${errorKey(view.code)}`)}</Notice>;
   if (view.kind === 'signedOut') return <SignedOut denied={result} />;
 
-  const { waiting, registered } = groupItems(items);
+  const { waiting, registered, finished } = groupItems(items);
   return (
     <div className="space-y-10">
       <div className="flex items-center justify-between gap-4 text-sm">
@@ -174,6 +174,34 @@ export default function AdminDashboard() {
           ))}
         </ul>
       </section>
+
+      {finished.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">{t('finished.title', { count: finished.length })}</h2>
+          <ul className="space-y-2">
+            {finished.map((item) => (
+              <li
+                key={item.sha256}
+                className="flex flex-wrap items-center gap-3 rounded-md border border-neutral-300 p-3 text-sm dark:border-neutral-700"
+              >
+                <bdi className="font-semibold">{item.original_name}</bdi>
+                <span>
+                  {item.entry && scholarLabel(item.entry.scholar, locale)} ·{' '}
+                  <bdi>{item.entry?.entry_id}</bdi>
+                </span>
+                {item.entry && (
+                  <a
+                    className="ms-auto underline"
+                    href={`/${locale}/admin/review/${encodeURIComponent(item.entry.entry_id)}?m=${item.sha256}`}
+                  >
+                    {t('review.open')}
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">{t('log.title')}</h2>
@@ -522,7 +550,9 @@ function RegisteredCard({
         >
           {item.transcript === 'failed'
             ? t('transcript.failed', { reason: item.transcript_error ?? '' })
-            : t(`transcript.${item.transcript}`)}
+            : item.transcript === 'ready' && item.arabic_approved
+              ? t('transcript.approved')
+              : t(`transcript.${item.transcript}`)}
         </p>
       )}
       {canTranscribe({ transcription, entryId, transcript: item.transcript }) && (

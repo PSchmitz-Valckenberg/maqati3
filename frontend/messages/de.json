@@ -131,7 +131,8 @@
       "queued": "Transkription angefragt — wartet auf den Worker.",
       "running": "Wird transkribiert…",
       "failed": "Die Transkription hat nicht geklappt: {reason}",
-      "ready": "Arabischer Entwurf liegt zur Durchsicht bereit."
+      "ready": "Arabischer Entwurf liegt zur Durchsicht bereit.",
+      "approved": "Arabisch freigegeben."
     },
     "error": {
       "notWaiting": "Das hat inzwischen schon jemand bearbeitet. Die Liste wurde neu geladen.",
@@ -199,6 +200,9 @@
       "hint": "Eine Zeile pro Moment. Klick auf eine Zeile spielt ab dort. Zeilen werden bearbeitet, nie hinzugefügt oder entfernt.",
       "requestDrafts": "Entwürfe für Englisch und Deutsch anfordern",
       "draftsQueued": "Entwürfe angefordert. Sie erscheinen gleich hier."
+    },
+    "finished": {
+      "title": "Fertig ({count})"
     }
   }
 }

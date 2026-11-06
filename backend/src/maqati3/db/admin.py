@@ -111,7 +111,9 @@ SELECT s.sha256, s.original_name, s.duration_ms, s.received_at, s.contributor,
        s.candidate_keys, s.entry_id, s.registered_by,
        sc.id, sc.name_ar, sc.name_en,
        j.state, j.last_error, el.state,
-       tj.state, tj.last_error, tl.drafted
+       tj.state, tj.last_error, tl.drafted,
+       (SELECT count(*) FROM entry_language x
+         WHERE x.entry_id = s.entry_id AND x.state = 'approved')
   FROM submission s
   LEFT JOIN entry e ON e.id = s.entry_id
   LEFT JOIN scholar sc ON sc.id = e.scholar_id
@@ -267,6 +269,7 @@ class PgDesk:
                     ),
                     translations_error=_text(row[15]),
                     arabic_approved=str(row[13]) == ReviewState.APPROVED.value,
+                    all_approved=int(str(row[17] or 0)) >= len(Lang),
                 )
             )
         return items
