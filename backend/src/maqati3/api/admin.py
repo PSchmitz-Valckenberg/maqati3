@@ -47,7 +47,7 @@ from maqati3.transcription import (
     TranscriptState,
     UnknownEntry,
 )
-from maqati3.translation import AlreadyTranslated, NothingToTranslate
+from maqati3.translation import AlreadyTranslated, ArabicNotApproved, NothingToTranslate
 
 log = logging.getLogger("maqati3")
 
@@ -77,6 +77,7 @@ DAILY_LIMIT_REACHED = "daily_limit_reached"
 TRANSLATION_NOT_CONFIGURED = "translation_not_configured"
 NOTHING_TO_TRANSLATE = "nothing_to_translate"
 ALREADY_TRANSLATED = "already_translated"
+ARABIC_NOT_APPROVED = "arabic_not_approved"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -188,6 +189,7 @@ class DashboardItemOut(BaseModel):
     transcript_error: str | None = None
     translations: TranscriptState = TranscriptState.NONE
     translations_error: str | None = None
+    arabic_approved: bool = False
 
     @classmethod
     def of(cls, item: DashboardItem) -> DashboardItemOut:
@@ -217,6 +219,7 @@ class DashboardItemOut(BaseModel):
             transcript_error=item.transcript_error,
             translations=item.translations,
             translations_error=item.translations_error,
+            arabic_approved=item.arabic_approved,
         )
 
 
@@ -427,6 +430,8 @@ def translate(entry_id: str, config: Config, admin: Admin) -> DraftsOut:
         raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
     except NothingToTranslate as exc:
         raise HTTPException(status_code=409, detail=NOTHING_TO_TRANSLATE) from exc
+    except ArabicNotApproved as exc:
+        raise HTTPException(status_code=409, detail=ARABIC_NOT_APPROVED) from exc
     except AlreadyTranslated as exc:
         raise HTTPException(status_code=409, detail=ALREADY_TRANSLATED) from exc
     except AlreadyQueued as exc:

@@ -146,8 +146,10 @@ belongs on real material, before any of it is trusted.
 
 ### Draft Translations on Demand
 
-Once an entry has an Arabic transcript it carries a **Draft translations** button. The
-button queues **one job per language**, English and German separately — if German fails,
+Once a person has **approved the Arabic** of an entry it carries a **Draft translations**
+button (decided 2026-11-06: a draft of a transcript that may be wrong is paid for and thrown
+away; before that the dashboard says it is waiting, and the server answers 409
+`arabic_not_approved`). The button queues **one job per language**, English and German separately — if German fails,
 the English that already arrived is not paid for twice, and whoever has started on one
 language keeps it.
 

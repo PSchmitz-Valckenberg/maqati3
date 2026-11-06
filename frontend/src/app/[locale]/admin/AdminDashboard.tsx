@@ -551,11 +551,21 @@ function RegisteredCard({
             : t(`drafts.${item.translations}`)}
         </p>
       )}
+      {translation &&
+        entryId !== null &&
+        item.transcript === 'ready' &&
+        !item.arabic_approved &&
+        item.translations === 'none' && (
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            {t('drafts.waitingForArabic')}
+          </p>
+        )}
       {canTranslate({
         translation,
         entryId,
         transcript: item.transcript,
         translations: item.translations,
+        arabicApproved: item.arabic_approved,
       }) && (
         <div className="space-y-1">
           <button

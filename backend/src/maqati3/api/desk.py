@@ -145,8 +145,8 @@ class Desk(Protocol):
     def request_translation(self, entry_id: str, admin_email: str) -> list[int]:
         """Queue a draft of every language still untouched; the job ids.
 
-        Raises `UnknownEntry`, `NothingToTranslate`, `AlreadyTranslated` or
-        `AlreadyQueued`, and in every one of those cases queues nothing.
+        Raises `UnknownEntry`, `NothingToTranslate`, `ArabicNotApproved`,
+        `AlreadyTranslated` or `AlreadyQueued`, and in every one of those cases queues nothing.
         """
         ...
 

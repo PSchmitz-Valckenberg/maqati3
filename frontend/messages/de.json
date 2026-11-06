@@ -121,6 +121,7 @@
     "translate": "Übersetzungen entwerfen",
     "translateHint": "Entwirft Englisch und Deutsch Zeile für Zeile. Ein Mensch prüft jede Zeile, bevor etwas veröffentlicht wird.",
     "drafts": {
+      "waitingForArabic": "Erst das Arabisch prüfen. Die Entwürfe lassen sich anfordern, sobald es jemand freigegeben hat.",
       "queued": "Entwurfsübersetzungen angefragt — warten auf den Worker.",
       "running": "Wird übersetzt…",
       "failed": "Die Entwurfsübersetzungen haben nicht geklappt: {reason}",
@@ -145,6 +146,7 @@
       "translationNotConfigured": "Auf diesem Server ist noch kein Übersetzungsmodell eingerichtet.",
       "nothingToTranslate": "Es gibt noch kein arabisches Transkript zum Übersetzen.",
       "alreadyTranslated": "Beide Sprachen haben schon einen Entwurf, oder jemand arbeitet daran.",
+      "arabicNotApproved": "Die Entwürfe gibt es erst, wenn jemand das Arabisch geprüft und freigegeben hat.",
       "network": "Die Verbindung wurde unterbrochen.",
       "generic": "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
     },

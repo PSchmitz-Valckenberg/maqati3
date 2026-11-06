@@ -188,8 +188,10 @@ davon geglaubt wird.
 
 ### Entwurfsübersetzungen auf Knopfdruck
 
-Sobald ein Eintrag ein arabisches Transkript hat, steht dort **Übersetzungen entwerfen**.
-Der Knopf stellt **einen Auftrag je Sprache** in die Warteschlange, Englisch und Deutsch
+Sobald jemand das **Arabisch** eines Eintrags **freigegeben** hat, steht dort
+**Übersetzungen entwerfen** (entschieden 2026-11-06: ein Entwurf eines womöglich falschen
+Transkripts wird bezahlt und weggeworfen; vorher sagt das Dashboard, dass es wartet, und der
+Server antwortet 409 `arabic_not_approved`). Der Knopf stellt **einen Auftrag je Sprache** in die Warteschlange, Englisch und Deutsch
 getrennt — scheitert das Deutsche, muss das fertige Englische nicht noch einmal bezahlt
 werden, und wer schon an einer Sprache arbeitet, behält sie.
 

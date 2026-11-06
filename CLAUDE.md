@@ -251,8 +251,11 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    the real service: the call shapes come from Soniox's documentation and are tested against a
    fake transport, so the first real run belongs on real material before it is trusted.
 
-   *Draft translations, built 2026-11-01:* a second button, offered only once the Arabic
-   exists, queues **one job per language** — English and German separately, so a German
+   *Draft translations, built 2026-11-01:* a second button, offered only once **a person has
+   approved the Arabic** (decided 2026-11-06: why pay to translate a transcript that may be
+   wrong — the order is *clip → admin checks it is legitimate → transcription → admin checks
+   and corrects the Arabic → only then the drafts*; the server answers 409
+   `arabic_not_approved` otherwise, and the dashboard says what it is waiting for), queues **one job per language** — English and German separately, so a German
    failure does not redo the English, and a reviewer who has started on one language keeps
    it. The rule the whole feature stands under is that **the row count is identical in every
    language**: line 42 in German belongs to the second line 42 was spoken. The model is held

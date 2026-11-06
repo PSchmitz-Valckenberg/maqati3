@@ -39,6 +39,7 @@ from maqati3.translation import (
     TARGET_LANGUAGES,
     TRANSLATE_JOB_KIND,
     AlreadyTranslated,
+    ArabicNotApproved,
     NothingToTranslate,
     translation_state,
 )
@@ -202,6 +203,7 @@ SELECT coalesce(sum(e.duration_sec), 0)
   FROM job j JOIN entry e ON e.id = j.payload->>'entry_id'
  WHERE j.kind = ANY(%s) AND j.created_at >= date_trunc('day', now())
 """
+_ARABIC_STATE = "SELECT state FROM entry_language WHERE entry_id = %s AND lang = 'ar'"
 _ENTRY_SECONDS = "SELECT coalesce(duration_sec, 0) FROM entry WHERE id = %s"
 _HAS_ARABIC = """
 SELECT 1 FROM segment s JOIN segment_text t ON t.segment_id = s.id
@@ -264,6 +266,7 @@ class PgDesk:
                         int(str(row[16] or 0)), _text(row[14])
                     ),
                     translations_error=_text(row[15]),
+                    arabic_approved=str(row[13]) == ReviewState.APPROVED.value,
                 )
             )
         return items
@@ -319,6 +322,11 @@ class PgDesk:
                 raise UnknownEntry(entry_id)
             if not self._executor.fetchall(_HAS_ARABIC, (entry_id,)):
                 raise NothingToTranslate(entry_id)
+            # Asked after the lock and before anything is queued or counted: text being
+            # there is not the same as a person having checked it.
+            arabic = self._executor.fetchall(_ARABIC_STATE, (entry_id,))
+            if not arabic or str(arabic[0][0]) != ReviewState.APPROVED.value:
+                raise ArabicNotApproved(entry_id)
             targets = PgTranslations(self._executor).untouched_languages(
                 entry_id, TARGET_LANGUAGES
             )

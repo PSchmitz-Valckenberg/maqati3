@@ -31,6 +31,8 @@ export type Item = {
   translations: TranscriptState;
   /** Why the last draft run failed -- its own reason, not the transcription's. */
   translations_error: string | null;
+  /** Whether a person has approved the Arabic. The drafts wait for it. */
+  arabic_approved: boolean;
 };
 
 export function groupItems(items: Item[]): { waiting: Item[]; registered: Item[] } {
@@ -84,24 +86,29 @@ export function canTranscribe({
 
 /** Whether to offer the draft translations at all.
  *
- * There is nothing to translate until the Arabic transcript exists, so the button
- * waits for it: the server answers 409 otherwise, and a button that can only fail is
- * worse than none. A run that failed left nothing behind and may be asked for again. */
+ * There is nothing to translate until the Arabic transcript exists, and a draft of a
+ * wrong transcript is paid for and thrown away, so the button waits for a person to
+ * have approved the Arabic: the server answers 409 otherwise, and a button that can
+ * only fail is worse than none. A run that failed left nothing behind and may be asked
+ * for again. */
 export function canTranslate({
   translation,
   entryId,
   transcript,
   translations,
+  arabicApproved,
 }: {
   translation: boolean;
   entryId: string | null;
   transcript: TranscriptState;
   translations: TranscriptState;
+  arabicApproved: boolean;
 }): boolean {
   return (
     translation &&
     entryId !== null &&
     transcript === 'ready' &&
+    arabicApproved &&
     (translations === 'none' || translations === 'failed')
   );
 }
@@ -119,6 +126,7 @@ const ERROR_KEYS: Record<string, string> = {
   translation_not_configured: 'translationNotConfigured',
   nothing_to_translate: 'nothingToTranslate',
   already_translated: 'alreadyTranslated',
+  arabic_not_approved: 'arabicNotApproved',
   network: 'network',
 };
 

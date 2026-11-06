@@ -121,6 +121,7 @@
     "translate": "Draft translations",
     "translateHint": "Drafts English and German line by line. A person checks every line before anything is published.",
     "drafts": {
+      "waitingForArabic": "Check the Arabic first. The drafts can be requested once someone has approved it.",
       "queued": "Draft translations requested — waiting for a worker.",
       "running": "Translating…",
       "failed": "The draft translations did not work: {reason}",
@@ -145,6 +146,7 @@
       "translationNotConfigured": "This server has no translation model set up yet.",
       "nothingToTranslate": "There is no Arabic transcript yet to translate.",
       "alreadyTranslated": "Both languages already have a draft, or someone is working on them.",
+      "arabicNotApproved": "The drafts wait until a person has checked and approved the Arabic.",
       "network": "The connection was interrupted.",
       "generic": "Something went wrong. Please try again."
     },
