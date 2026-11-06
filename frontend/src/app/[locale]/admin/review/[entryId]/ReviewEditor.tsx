@@ -8,9 +8,10 @@ import {
   fetchReview,
   mediaUrl,
   moveLanguage,
+  requestTranslation,
   saveRow,
 } from '@/lib/admin/api';
-import { errorKey } from '@/lib/admin/logic';
+import { canTranslate, errorKey } from '@/lib/admin/logic';
 import {
   availableMoves,
   canEdit,
@@ -51,6 +52,8 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
   const locale = useLocale();
   const [review, setReview] = useState<Review | null>(null);
   const [me, setMe] = useState<string | null>(null);
+  const [translation, setTranslation] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTimes, setShowTimes] = useState(false);
   const [active, setActive] = useState(-1);
@@ -76,9 +79,30 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
       .then(([loaded, who]) => {
         setReview(loaded);
         setMe(who.email);
+        setTranslation(who.translation);
       })
       .catch((caught) => setError(codeOf(caught)));
   }, [entryId]);
+
+  // While drafts are on their way, look again every few seconds: the worker is another process.
+  useEffect(() => {
+    if (!queued) return;
+    const timer = setInterval(() => void reload(), 5000);
+    return () => clearInterval(timer);
+  }, [queued, reload]);
+
+  async function requestDrafts() {
+    setBusy(true);
+    setError(null);
+    try {
+      await requestTranslation(entryId);
+      setQueued(true);
+    } catch (caught) {
+      setError(codeOf(caught));
+    }
+    await reload();
+    setBusy(false);
+  }
 
   const cues = useMemo(() => rowCues(review?.rows ?? []), [review]);
 
@@ -212,6 +236,27 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
           );
         })}
       </section>
+
+      {canTranslate({
+        translation,
+        entryId: review.entry_id,
+        transcript: 'ready',
+        translations:
+          review.languages.en?.state === 'not_started' &&
+          review.languages.de?.state === 'not_started'
+            ? 'none'
+            : 'ready',
+        arabicApproved: review.languages.ar?.state === 'approved',
+      }) && (
+        <button type="button" className={PRIMARY} disabled={busy} onClick={() => void requestDrafts()}>
+          {t('requestDrafts')}
+        </button>
+      )}
+      {queued &&
+        (review.languages.en?.state === 'not_started' ||
+          review.languages.de?.state === 'not_started') && (
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('draftsQueued')}</p>
+        )}
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={showTimes} onChange={(e) => setShowTimes(e.target.checked)} />

@@ -196,7 +196,9 @@
       "saving": "Saving…",
       "saved": "Saved",
       "unsaved": "Unsaved changes",
-      "hint": "One row per moment. Click a row to play from there. Rows are edited, never added or removed."
+      "hint": "One row per moment. Click a row to play from there. Rows are edited, never added or removed.",
+      "requestDrafts": "Request English and German drafts",
+      "draftsQueued": "Drafts requested. They appear here in a moment."
     }
   }
 }
