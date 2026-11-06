@@ -296,6 +296,12 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
                   lang={lang}
                   saved={saved}
                   editable={canEdit(review.languages[lang], me)}
+                  // A click on text that is not yet mine takes the language, if it can be taken.
+                  onTake={
+                    availableMoves(lang, review.languages, me).some((m) => m.key === 'take')
+                      ? () => move(lang, 'in_progress')
+                      : undefined
+                  }
                   onSave={(text) => save(row, lang, text)}
                 />
               );
@@ -311,21 +317,37 @@ function RowText({
   lang,
   saved,
   editable,
+  onTake,
   onSave,
 }: {
   lang: Lang;
   saved: string;
   editable: boolean;
+  onTake?: () => Promise<void>;
   onSave: (text: string) => Promise<boolean>;
 }) {
   const t = useTranslations('admin.review');
   const [draft, setDraft] = useState(saved);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [clicked, setClicked] = useState(false);
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
 
   if (!editable) {
     return (
-      <p dir={dir} lang={lang} className="whitespace-pre-wrap">
+      <p
+        dir={dir}
+        lang={lang}
+        className={`whitespace-pre-wrap ${onTake ? 'cursor-text rounded hover:bg-neutral-800/40' : ''}`}
+        title={onTake ? t('readOnly') : undefined}
+        onClick={
+          onTake
+            ? () => {
+                setClicked(true);
+                void onTake();
+              }
+            : undefined
+        }
+      >
         {saved}
       </p>
     );
@@ -336,6 +358,7 @@ function RowText({
         dir={dir}
         lang={lang}
         value={draft}
+        autoFocus={clicked}
         rows={2}
         aria-label={LANGUAGE_NAMES[lang]}
         className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700"
