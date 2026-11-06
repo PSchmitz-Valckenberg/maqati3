@@ -35,10 +35,15 @@ class FakeSoniox:
         error_message: str = "the audio could not be decoded",
     ) -> None:
         self.statuses = statuses or ["completed"]
-        self.tokens = tokens if tokens is not None else [
-            {"text": "هذا", "start_ms": 0, "end_ms": 400},
-            {"text": "جائز.", "start_ms": 400, "end_ms": 900},
-        ]
+        self.tokens = (
+            tokens
+            if tokens is not None
+            else [
+                {"text": "هذا", "start_ms": 0, "end_ms": 400},
+                {"text": " جائز", "start_ms": 400, "end_ms": 850},
+                {"text": ".", "start_ms": 850, "end_ms": 900},
+            ]
+        )
         self.fail_on = fail_on
         self.error_message = error_message
         self.requests: list[tuple[str, str]] = []
@@ -78,7 +83,10 @@ def transcriber(fake: FakeSoniox, **kwargs: object) -> SonioxTranscriber:
         transport=httpx.MockTransport(fake.handle), base_url="https://api.soniox.test"
     )
     return SonioxTranscriber(
-        KEY, client=client, sleep=lambda _seconds: None, **kwargs  # type: ignore[arg-type]
+        KEY,
+        client=client,
+        sleep=lambda _seconds: None,
+        **kwargs,  # type: ignore[arg-type]
     )
 
 
@@ -146,9 +154,7 @@ def test_the_recording_goes_up_and_the_words_come_back_as_lines(recording: Path)
     result = transcriber(fake).transcribe(recording, lang=Lang.AR)
 
     assert recording.read_bytes() in fake.uploaded
-    assert fake.bodies == [
-        {"model": "stt-async-v5", "file_id": "file-1", "language_hints": ["ar"]}
-    ]
+    assert fake.bodies == [{"model": "stt-async-v5", "file_id": "file-1", "language_hints": ["ar"]}]
     assert [(line.t_start_ms, line.t_end_ms, line.text) for line in result.lines] == [
         (0, 900, "هذا جائز.")
     ]

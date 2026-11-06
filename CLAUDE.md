@@ -234,8 +234,9 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    (ASR is ~0.002 $ for an 80 s clip), which is what "deep before broad" means in practice.
 
    *Transcription, built 2026-10-31:* the button queues a job; `maqati3.worker` claims it,
-   sends the staged file to Soniox, groups the word tokens into one row per moment
-   (`asr/lines.py`) and stores them. Four rules hold it together, each with a test for the
+   sends the staged file to Soniox, groups the tokens into one row per moment
+   (`asr/lines.py`; Soniox sends *pieces of words*, a leading space marks where a word begins —
+   learned from the first real run, 2026-11-06) and stores them. Four rules hold it together, each with a test for the
    blocked case: **one run per entry** (a second click is 409 — ASR is billed per audio hour
    and two runs are two writers on one timeline); **never overwrite** (lines already there, or
    an Arabic past `not_started`, refuse the request, and a result that arrives too late is
