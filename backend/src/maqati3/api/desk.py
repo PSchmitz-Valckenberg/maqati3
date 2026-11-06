@@ -77,6 +77,8 @@ class DashboardItem:
     #: Why the last draft run failed. Its own field, not the transcription's: showing
     #: one failure's reason next to the other would send an admin after the wrong thing.
     translations_error: str | None = None
+    #: Whether a person has checked the Arabic. The drafts wait for it.
+    arabic_approved: bool = False
 
 
 class Admins(Protocol):

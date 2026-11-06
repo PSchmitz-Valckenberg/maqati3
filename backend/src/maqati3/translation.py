@@ -36,6 +36,14 @@ class NothingToTranslate(ValueError):
     """There is no Arabic yet. A model asked to translate nothing is paid for nothing."""
 
 
+class ArabicNotApproved(ValueError):
+    """The Arabic has not been checked by a person yet.
+
+    A draft of a wrong transcript is paid for, read and thrown away, so the drafts wait
+    for the review state `approved` on the Arabic -- text being there is not enough.
+    """
+
+
 class AlreadyTranslated(ValueError):
     """This language already has text, or someone is working on it.
 
@@ -80,6 +88,7 @@ __all__ = [
     "TRANSLATE_JOB_KIND",
     "AlreadyQueued",
     "AlreadyTranslated",
+    "ArabicNotApproved",
     "DailyLimitReached",
     "NothingToTranslate",
     "Translations",

@@ -28,6 +28,7 @@ from maqati3.translate import LineCountMismatch
 from maqati3.translation import (
     TRANSLATE_JOB_KIND,
     AlreadyTranslated,
+    ArabicNotApproved,
     NothingToTranslate,
 )
 
@@ -89,10 +90,16 @@ def transcribed_entry(executor: Any, sha: str = "aa" * 32, *, arabic: bool = Tru
     return entry_id
 
 
-def jobs(connection: Any) -> list[tuple[Any, ...]]:
-    return list(
-        connection.execute("SELECT id, kind, payload FROM job ORDER BY id").fetchall()
+def approve_arabic(connection: Any, entry_id: str) -> None:
+    """What a reviewer's "the Arabic is checked" will do once the editor exists."""
+    connection.execute(
+        "UPDATE entry_language SET state = 'approved' WHERE entry_id = %s AND lang = 'ar'",
+        (entry_id,),
     )
+
+
+def jobs(connection: Any) -> list[tuple[Any, ...]]:
+    return list(connection.execute("SELECT id, kind, payload FROM job ORDER BY id").fetchall())
 
 
 # ------------------------------------------------------- asking: the blocked cases
@@ -120,9 +127,64 @@ def test_integration_there_is_nothing_to_translate_before_there_is_arabic() -> N
 
 
 @requires_database
+@pytest.mark.parametrize("state", ["draft_ready", "in_progress", "awaiting_review", "needs_fixes"])
+def test_integration_drafts_wait_until_the_arabic_is_approved(state: str) -> None:
+    # A draft of a wrong transcript is paid for, read, and thrown away. The Arabic has
+    # to have been checked by a person first, and "there is text" is not "it was checked".
+    with migrated_schema() as (connection, executor):
+        entry_id = transcribed_entry(executor)
+        connection.execute(
+            "UPDATE entry_language SET state = %s WHERE entry_id = %s AND lang = 'ar'",
+            (state, entry_id),
+        )
+
+        with pytest.raises(ArabicNotApproved):
+            PgDesk(executor).request_translation(entry_id, "yusuf@example.org")
+
+        assert jobs(connection) == []
+
+
+@requires_database
+def test_integration_the_arabic_gate_costs_no_budget_and_writes_no_log() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = transcribed_entry(executor)
+
+        with pytest.raises(ArabicNotApproved):
+            PgDesk(executor).request_translation(entry_id, "yusuf@example.org")
+
+        assert connection.execute(
+            "SELECT count(*) FROM admin_log WHERE action = 'translate'"
+        ).fetchone() == (0,)
+
+
+@requires_database
+def test_integration_no_arabic_at_all_is_still_nothing_to_translate() -> None:
+    # The older, plainer answer wins: there is not even text to be checked.
+    with migrated_schema() as (connection, executor):
+        entry_id = transcribed_entry(executor, arabic=False)
+
+        with pytest.raises(NothingToTranslate):
+            PgDesk(executor).request_translation(entry_id, "yusuf@example.org")
+
+
+@requires_database
+def test_integration_the_dashboard_says_whether_the_arabic_is_approved() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = transcribed_entry(executor)
+        desk = PgDesk(executor)
+
+        (before,) = desk.items()
+        approve_arabic(connection, entry_id)
+        (after,) = desk.items()
+
+        assert (before.arabic_approved, after.arabic_approved) == (False, True)
+
+
+@requires_database
 def test_integration_a_language_already_drafted_is_left_alone() -> None:
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
+        approve_arabic(connection, entry_id)
         PgTranslations(executor).store(entry_id, Lang.EN, ENGLISH)
 
         PgDesk(executor).request_translation(entry_id, "yusuf@example.org")
@@ -136,6 +198,7 @@ def test_integration_a_language_already_drafted_is_left_alone() -> None:
 def test_integration_an_entry_whose_languages_are_all_done_is_refused() -> None:
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
+        approve_arabic(connection, entry_id)
         PgTranslations(executor).store(entry_id, Lang.EN, ENGLISH)
         PgTranslations(executor).store(entry_id, Lang.DE, ("Was ist das Urteil?", "Erlaubt."))
 
@@ -150,6 +213,7 @@ def test_integration_a_language_someone_is_working_on_is_not_drafted_over() -> N
     # A reviewer who started typing English must not have a machine draft land on top.
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
+        approve_arabic(connection, entry_id)
         connection.execute(
             "UPDATE entry_language SET state = 'in_progress' WHERE entry_id = %s AND lang = 'en'",
             (entry_id,),
@@ -164,6 +228,7 @@ def test_integration_a_language_someone_is_working_on_is_not_drafted_over() -> N
 def test_integration_a_second_click_while_drafts_are_on_their_way_adds_no_second_job() -> None:
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
+        approve_arabic(connection, entry_id)
         desk = PgDesk(executor)
         desk.request_translation(entry_id, "yusuf@example.org")
 
@@ -179,6 +244,7 @@ def test_integration_translation_and_transcription_share_one_daily_budget() -> N
     # has to understand, and the only one that cannot be bypassed by switching button.
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
+        approve_arabic(connection, entry_id)
 
         with pytest.raises(Exception) as excinfo:
             PgDesk(executor, daily_limit_seconds=10).request_translation(
@@ -231,6 +297,7 @@ def test_integration_a_draft_never_lands_on_a_language_that_already_has_text() -
 def test_integration_asking_queues_one_job_per_language_and_records_who_asked() -> None:
     with migrated_schema() as (connection, executor):
         entry_id = transcribed_entry(executor)
+        approve_arabic(connection, entry_id)
 
         queued = PgDesk(executor).request_translation(entry_id, "yusuf@example.org")
 

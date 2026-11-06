@@ -30,6 +30,7 @@ function item(overrides: Partial<Item> = {}): Item {
     transcript_error: null,
     translations: 'none',
     translations_error: null,
+    arabic_approved: false,
     ...overrides,
   };
 }
@@ -129,6 +130,7 @@ describe('what the dashboard says when a transcription is refused', () => {
     ['translation_not_configured', 'translationNotConfigured'],
     ['nothing_to_translate', 'nothingToTranslate'],
     ['already_translated', 'alreadyTranslated'],
+    ['arabic_not_approved', 'arabicNotApproved'],
   ];
 
   it.each(refusals)('maps %s to its own message rather than the general one', (code, key) => {
@@ -175,12 +177,26 @@ describe('canTranslate', () => {
     entryId: 'ibn-baz-000042',
     transcript: 'ready',
     translations: 'none',
+    arabicApproved: true,
   } as const;
 
   it('is not offered before there is an Arabic transcript to translate', () => {
     // The server answers 409. There is nothing to translate until the Arabic is there.
     for (const transcript of ['none', 'queued', 'running', 'failed'] as const) {
       expect(canTranslate({ ...ready, transcript })).toBe(false);
+    }
+  });
+
+  it('waits for a person to approve the Arabic, however finished the transcript looks', () => {
+    // A draft of a wrong transcript is paid for and thrown away. The server answers 409
+    // until the Arabic is approved, so the button is not offered before.
+    expect(canTranslate({ ...ready, arabicApproved: false })).toBe(false);
+  });
+
+  it('says what it is waiting for, in all three languages', () => {
+    for (const messages of [en, de, ar]) {
+      const text = (messages.admin.drafts as Record<string, string>).waitingForArabic;
+      expect(text ?? '').not.toBe('');
     }
   });
 

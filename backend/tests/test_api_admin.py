@@ -39,7 +39,7 @@ from maqati3.transcription import (
     TranscriptState,
     UnknownEntry,
 )
-from maqati3.translation import AlreadyTranslated, NothingToTranslate
+from maqati3.translation import AlreadyTranslated, ArabicNotApproved, NothingToTranslate
 
 PUBLIC_URL = "https://archiv.example.org"
 SECRET = "x" * 48
@@ -166,6 +166,8 @@ class FakeDesk:
             raise NothingToTranslate(entry_id)
         if entry_id == "ibn-baz-000008":
             raise AlreadyTranslated(entry_id)
+        if entry_id == "ibn-baz-000006":
+            raise ArabicNotApproved(entry_id)
         self.calls.append(("translate", entry_id, admin_email))
         return [18, 19]
 
@@ -559,6 +561,7 @@ def test_the_dashboard_lists_what_waits_and_what_is_registered() -> None:
         "transcript_error": None,
         "translations": "none",
         "translations_error": None,
+        "arabic_approved": False,
     }
     assert registered["status"] == "registered"
     assert registered["entry"] == {
@@ -822,9 +825,7 @@ def test_transcription_cannot_be_triggered_from_another_site() -> None:
 def test_an_entry_that_is_not_there_cannot_be_transcribed() -> None:
     setup = signed_in(transcription=True)
 
-    response = setup.client.post(
-        "/api/v1/admin/entries/nobody-000001/transcribe", headers=CSRF
-    )
+    response = setup.client.post("/api/v1/admin/entries/nobody-000001/transcribe", headers=CSRF)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "unknown_entry"
@@ -833,9 +834,7 @@ def test_an_entry_that_is_not_there_cannot_be_transcribed() -> None:
 def test_an_entry_that_already_has_a_transcript_is_not_transcribed_again() -> None:
     setup = signed_in(transcription=True)
 
-    response = setup.client.post(
-        "/api/v1/admin/entries/ibn-baz-000007/transcribe", headers=CSRF
-    )
+    response = setup.client.post("/api/v1/admin/entries/ibn-baz-000007/transcribe", headers=CSRF)
 
     assert response.status_code == 409
     assert response.json()["detail"] == "already_transcribed"
@@ -844,9 +843,7 @@ def test_an_entry_that_already_has_a_transcript_is_not_transcribed_again() -> No
 def test_a_second_click_while_a_run_is_queued_is_a_conflict() -> None:
     setup = signed_in(transcription=True)
 
-    response = setup.client.post(
-        "/api/v1/admin/entries/ibn-baz-000008/transcribe", headers=CSRF
-    )
+    response = setup.client.post("/api/v1/admin/entries/ibn-baz-000008/transcribe", headers=CSRF)
 
     assert response.status_code == 409
     assert response.json()["detail"] == "already_queued"
@@ -872,9 +869,7 @@ def test_nothing_more_is_sent_once_the_days_budget_is_spent() -> None:
     # 429, like the upload key limit: the answer is "not now", not "never".
     setup = signed_in(transcription=True)
 
-    response = setup.client.post(
-        "/api/v1/admin/entries/ibn-baz-000009/transcribe", headers=CSRF
-    )
+    response = setup.client.post("/api/v1/admin/entries/ibn-baz-000009/transcribe", headers=CSRF)
 
     assert response.status_code == 429
     assert response.json()["detail"] == "daily_limit_reached"
@@ -907,20 +902,26 @@ def test_drafting_translations_cannot_be_triggered_from_another_site() -> None:
 def test_an_entry_with_no_arabic_has_nothing_to_translate() -> None:
     setup = signed_in(translation=True)
 
-    response = setup.client.post(
-        "/api/v1/admin/entries/ibn-baz-000007/translate", headers=CSRF
-    )
+    response = setup.client.post("/api/v1/admin/entries/ibn-baz-000007/translate", headers=CSRF)
 
     assert response.status_code == 409
     assert response.json()["detail"] == "nothing_to_translate"
 
 
+def test_drafts_are_refused_until_the_arabic_has_been_approved() -> None:
+    setup = signed_in(translation=True)
+
+    response = setup.client.post("/api/v1/admin/entries/ibn-baz-000006/translate", headers=CSRF)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "arabic_not_approved"
+    assert setup.desk.calls == []
+
+
 def test_an_entry_whose_languages_are_all_drafted_is_refused() -> None:
     setup = signed_in(translation=True)
 
-    response = setup.client.post(
-        "/api/v1/admin/entries/ibn-baz-000008/translate", headers=CSRF
-    )
+    response = setup.client.post("/api/v1/admin/entries/ibn-baz-000008/translate", headers=CSRF)
 
     assert response.status_code == 409
     assert response.json()["detail"] == "already_translated"
