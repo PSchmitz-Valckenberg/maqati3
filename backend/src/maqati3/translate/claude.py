@@ -6,9 +6,14 @@ typing, not to be trusted.
 
 Two things make the row-count rule answerable instead of hopeful. The reply is
 constrained to a JSON array by the API's structured output, so there is always a
-countable list rather than prose to parse; and every line goes up numbered, so a line
-the model would otherwise have quietly folded into its neighbour has a number that goes
-missing. The count is then checked, and a mismatch raises rather than being repaired.
+countable list rather than prose to parse; and every line goes up with a number and
+comes back with it, in a field of its own, so a line the model would otherwise have
+quietly folded into its neighbour has a number that goes missing. The numbers are then
+checked against the ones asked for, and a mismatch raises rather than being repaired.
+
+The number has a field of its own because it did not stay out of the text otherwise: sent
+as "3. line" and answered as a bare array of strings, the first real run came back with
+"3. " at the front of every translation (2026-11-06).
 
 **Not the Batch API**, although `CLAUDE.md` names it. Batch halves the price, and the
 whole corpus costs about nine euros to draft, so the saving is some four euros against a
@@ -44,12 +49,23 @@ MAX_TOKENS = 8000
 LANGUAGE_NAMES = {Lang.AR: "Arabic", Lang.EN: "English", Lang.DE: "German"}
 
 #: The reply shape. With this the model cannot answer with prose, an apology or a
-#: numbered list of its own invention: there is always a countable array.
+#: numbered list of its own invention: there is always a countable array, and each line
+#: carries the number it was sent under.
 SCHEMA: dict[str, Any] = {
     "type": "json_schema",
     "schema": {
         "type": "object",
-        "properties": {"lines": {"type": "array", "items": {"type": "string"}}},
+        "properties": {
+            "lines": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"n": {"type": "integer"}, "text": {"type": "string"}},
+                    "required": ["n", "text"],
+                    "additionalProperties": False,
+                },
+            }
+        },
         "required": ["lines"],
         "additionalProperties": False,
     },
@@ -61,8 +77,10 @@ def system_prompt(source: Lang, target: Lang) -> str:
     return f"""You translate the transcript of a scholar's recorded answer from \
 {LANGUAGE_NAMES[source]} into {LANGUAGE_NAMES[target]}.
 
-Return exactly one translation for each numbered line you are given, in the same order,
-as a JSON array under "lines". This is absolute: the lines are moments in a recording,
+You are given a JSON array of lines, each {{"n": <number>, "text": <the line>}}. Return
+exactly one translation for each, in the same order, as a JSON array under "lines", each
+{{"n": <the same number>, "text": <the translation>}}. The number goes in "n" and nowhere
+else: never write it into the text. This is absolute: the lines are moments in a recording,
 and line 42 of your answer is shown at the second line 42 was spoken. Never merge two
 lines into one sentence, never split one line into two, never add a line and never drop
 one. If a line is empty, return an empty string for it. If a sentence runs across two
@@ -106,19 +124,19 @@ class ClaudeTranslator:
         # SDK in every test, and the SDK's own TypedDicts do not accept plain dicts.
         self._client: Any = client
 
-    def translate(
-        self, lines: Sequence[str], *, source: Lang, target: Lang
-    ) -> tuple[str, ...]:
+    def translate(self, lines: Sequence[str], *, source: Lang, target: Lang) -> tuple[str, ...]:
         drafted: list[str] = []
         for start in range(0, len(lines), self._chunk_lines):
             chunk = list(lines[start : start + self._chunk_lines])
             drafted.extend(self._chunk(chunk, source=source, target=target, offset=start))
         return tuple(drafted)
 
-    def _chunk(
-        self, lines: list[str], *, source: Lang, target: Lang, offset: int
-    ) -> list[str]:
-        numbered = "\n".join(f"{n}. {line}" for n, line in enumerate(lines, start=offset + 1))
+    def _chunk(self, lines: list[str], *, source: Lang, target: Lang, offset: int) -> list[str]:
+        numbers = list(range(offset + 1, offset + len(lines) + 1))
+        numbered = json.dumps(
+            [{"n": n, "text": line} for n, line in zip(numbers, lines, strict=True)],
+            ensure_ascii=False,
+        )
         try:
             response = self._client.messages.create(
                 model=self._model,
@@ -132,26 +150,39 @@ class ClaudeTranslator:
             )
         except Exception as exc:  # the SDK's own errors, and anything a fake raises
             raise TranslationError(f"the model could not be asked: {exc}") from exc
-        drafted = _lines_of(response)
-        if len(drafted) != len(lines):
-            raise LineCountMismatch(
-                f"lines {offset + 1}-{offset + len(lines)}: asked for {len(lines)} lines, "
-                f"got {len(drafted)}"
-            )
-        return drafted
+        answered = _lines_of(response)
+        where = f"lines {offset + 1}-{offset + len(lines)}"
+        if len(answered) != len(lines):
+            raise LineCountMismatch(f"{where}: asked for {len(lines)} lines, got {len(answered)}")
+        if [n for n, _ in answered] != numbers:
+            # The right count with the wrong numbers is a line folded away and another
+            # one invented to cover for it. Counting alone would have let it through.
+            raise LineCountMismatch(f"{where}: the lines came back under different numbers")
+        return [text for _, text in answered]
 
 
-def _lines_of(response: Any) -> list[str]:
-    """The array out of the reply. Anything else is a failure, never a partial answer."""
+def _lines_of(response: Any) -> list[tuple[int, str]]:
+    """The (number, text) pairs out of the reply. Anything else is a failure, never a
+    partial answer."""
     try:
         text = next(block.text for block in response.content if block.type == "text")
         payload = json.loads(text)
         lines = payload["lines"]
-    except (AttributeError, StopIteration, TypeError, KeyError, json.JSONDecodeError) as exc:
+        pairs = [(item["n"], item["text"]) for item in lines]
+    except (
+        AttributeError,
+        StopIteration,
+        TypeError,
+        KeyError,
+        json.JSONDecodeError,
+    ) as exc:
         raise TranslationError(f"the model did not answer in the agreed shape: {exc}") from exc
-    if not isinstance(lines, list) or not all(isinstance(line, str) for line in lines):
-        raise TranslationError("the model's lines were not a list of strings")
-    return list(lines)
+    if not all(
+        isinstance(n, int) and not isinstance(n, bool) and isinstance(line, str)
+        for n, line in pairs
+    ):
+        raise TranslationError("the model's lines were not numbered strings")
+    return pairs
 
 
 __all__ = ["CHUNK_LINES", "DEFAULT_MODEL", "ClaudeTranslator", "system_prompt"]

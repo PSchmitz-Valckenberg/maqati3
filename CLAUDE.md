@@ -257,7 +257,9 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    it. The rule the whole feature stands under is that **the row count is identical in every
    language**: line 42 in German belongs to the second line 42 was spoken. The model is held
    to it three ways — a fixed JSON schema so there is always a countable array, numbered
-   lines going up so a folded line leaves a gap, and a count check on the way back — and then
+   lines going up and coming back with the number in a field of its own (as part of the
+   text it leaked into every translation on the first real run, 2026-11-06), so a folded line
+   leaves a gap, and a check of the count *and* the numbers on the way back — and then
    checked a second time in `db/translations.py`, where the rows actually attach to the
    timeline. A mismatch is never repaired by padding or merging; it stores nothing. Drafts
    are `machine_translation` and `draft_ready`, never public until a person approves that
