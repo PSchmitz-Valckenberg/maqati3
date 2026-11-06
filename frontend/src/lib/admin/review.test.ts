@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest';
+import ar from '../../../messages/ar.json';
+import de from '../../../messages/de.json';
+import en from '../../../messages/en.json';
+import { errorKey } from './logic';
+import {
+  availableMoves,
+  canEdit,
+  isDirty,
+  languageOrder,
+  rowCues,
+  type Languages,
+  type ReviewRow,
+} from './review';
+
+const ME = 'yusuf@example.org';
+const OTHER = 'aisha@example.org';
+
+function languages(overrides: Languages = {}): Languages {
+  return {
+    ar: { state: 'approved', assignee: null },
+    en: { state: 'draft_ready', assignee: null },
+    ...overrides,
+  };
+}
+
+describe('who may edit', () => {
+  it('only the person who has taken the language, and only while it is in progress', () => {
+    expect(canEdit({ state: 'in_progress', assignee: ME }, ME)).toBe(true);
+  });
+
+  it.each(['draft_ready', 'awaiting_review', 'needs_fixes', 'approved', 'not_started'] as const)(
+    'nobody edits a language that is %s',
+    (state) => {
+      expect(canEdit({ state, assignee: ME }, ME)).toBe(false);
+    },
+  );
+
+  it('nobody edits a language someone else has taken', () => {
+    expect(canEdit({ state: 'in_progress', assignee: OTHER }, ME)).toBe(false);
+  });
+
+  it('a language that is not there cannot be edited', () => {
+    expect(canEdit(undefined, ME)).toBe(false);
+  });
+});
+
+describe('which moves the page offers', () => {
+  const moves = (lang: string, l: Languages) => availableMoves(lang, l, ME).map((m) => m.to);
+
+  it('a draft can be taken', () => {
+    expect(moves('en', languages())).toEqual(['in_progress']);
+  });
+
+  it('work that was sent back can be taken again', () => {
+    expect(moves('ar', languages({ ar: { state: 'needs_fixes', assignee: OTHER } }))).toEqual([
+      'in_progress',
+    ]);
+  });
+
+  it('what I am working on can be handed on, and nothing else', () => {
+    expect(moves('ar', languages({ ar: { state: 'in_progress', assignee: ME } }))).toEqual([
+      'awaiting_review',
+    ]);
+  });
+
+  it('what someone else is working on offers nothing', () => {
+    expect(moves('ar', languages({ ar: { state: 'in_progress', assignee: OTHER } }))).toEqual([]);
+  });
+
+  it('what waits for review can be approved or sent back', () => {
+    expect(
+      moves('ar', languages({ ar: { state: 'awaiting_review', assignee: OTHER } })),
+    ).toEqual(['approved', 'needs_fixes']);
+  });
+
+  it.each(['approved', 'not_started'] as const)('a language that is %s offers nothing', (state) => {
+    expect(moves('ar', languages({ ar: { state, assignee: null } }))).toEqual([]);
+  });
+
+  it('a translation offers nothing while the Arabic is not approved', () => {
+    expect(
+      moves('en', languages({ ar: { state: 'awaiting_review', assignee: ME } })),
+    ).toEqual([]);
+  });
+
+  it('a language that is not there offers nothing', () => {
+    expect(moves('de', languages())).toEqual([]);
+  });
+});
+
+describe('rows and text', () => {
+  const rows: ReviewRow[] = [
+    { idx: 0, t_start_ms: 0, t_end_ms: 2400, texts: { ar: 'أ', en: 'a' } },
+    { idx: 1, t_start_ms: 2500, t_end_ms: null, texts: { ar: 'ب' } },
+  ];
+
+  it('rows become cues in the same order, one for one', () => {
+    expect(rowCues(rows)).toEqual([
+      { idx: 0, startMs: 0, endMs: 2400 },
+      { idx: 1, startMs: 2500, endMs: null },
+    ]);
+  });
+
+  it('a draft differs from the saved text only by more than whitespace at the ends', () => {
+    expect(isDirty('هذا جائز.', 'هذا جائز.')).toBe(false);
+    expect(isDirty('هذا جائز.', '  هذا جائز.\n')).toBe(false);
+    expect(isDirty('هذا جائز.', 'هذا جائز جدا.')).toBe(true);
+  });
+
+  it('Arabic comes first, then the languages that have text', () => {
+    expect(languageOrder(languages({ de: { state: 'draft_ready', assignee: null } }))).toEqual([
+      'ar',
+      'en',
+      'de',
+    ]);
+    expect(languageOrder({ en: { state: 'draft_ready', assignee: null } })).toEqual(['en']);
+  });
+});
+
+describe('what the server refuses with', () => {
+  it.each([
+    ['unknown_row', 'unknownRow'],
+    ['not_in_progress', 'notInProgress'],
+    ['claimed_by_other', 'claimedByOther'],
+    ['empty_text', 'emptyText'],
+    ['invalid_transition', 'invalidTransition'],
+    ['review_not_available', 'reviewNotAvailable'],
+  ])('%s is told in words in every language', (code, key) => {
+    expect(errorKey(code)).toBe(key);
+    for (const messages of [en, de, ar]) {
+      const text = (messages.admin.error as Record<string, string>)[key];
+      expect(text, `${key} missing`).toBeTruthy();
+    }
+  });
+
+  it('every text of the review page exists in every language', () => {
+    const keys = (m: typeof en) => Object.keys((m.admin as Record<string, unknown>).review as object).sort();
+    expect(keys(de)).toEqual(keys(en));
+    expect(keys(ar)).toEqual(keys(en));
+  });
+});
