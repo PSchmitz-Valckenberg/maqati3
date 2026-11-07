@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import BidiText from '@/components/BidiText';
+import BidiText from '../components/BidiText';
 import { splitNumberRuns } from './bidi';
 
 const numbers = (text: string) => splitNumberRuns(text).filter((r) => r.number).map((r) => r.text);

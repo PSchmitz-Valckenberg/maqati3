@@ -26,6 +26,7 @@ import {
 } from '@/lib/admin/review';
 import { findActiveCue } from '@/lib/cues';
 import { formatDuration } from '@/lib/uploads/batch';
+import BidiText from '@/components/BidiText';
 import MetadataPanel from './MetadataPanel';
 
 const LANGUAGE_NAMES: Record<Lang, string> = { ar: 'العربية', en: 'English', de: 'Deutsch' };
@@ -390,7 +391,7 @@ function RowText({
             : undefined
         }
       >
-        {saved}
+        <BidiText text={saved} />
       </p>
     );
   }
