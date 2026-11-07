@@ -289,6 +289,18 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    `span_role` per row (#26), takeover of an abandoned claim (#24, undecided: for now there is
    none), the revision log for attribution changes (#27 covers only text and state so far),
    and a browser test of the page itself (tested through the API and the logic only).
+   *Metadata, built 2026-11-07* (replaces the old step 7 of the flow): once the Arabic is
+   approved, a button on the review page asks Claude Haiku for a **title, the question that was
+   asked, and keywords**, in English only (decided: metadata in English). Keywords are free
+   text, because **every topic is accepted** (decided 2026-11-07: no fixed topic list limits
+   what an entry may be about; `reference/topics.yml` stays only for the browse tree and the
+   `excluded` gate, and nothing new depends on it). The draft is stored as `metadata_state =
+   'draft'` (migration `0007`), and a person reads, corrects and saves it, which makes it
+   `confirmed`. Rules, each with a test for the blocked case: not before the Arabic is
+   approved; one draft per entry and never over a person's words; every change in
+   `revision_log`. **There is deliberately no `hukm` field in the draft and none is asked for**:
+   a ruling of the archive's own is the one thing it must never produce. `hukm` and
+   `generality` stay a person's entry for later.
 5. **Per language, with a claim.** The unit of work is one language of one entry. Whoever
    takes it makes it visible to everyone as "in progress: <name>", so nobody does the same
    work twice. An admin without German or English reviews Arabic only; the other languages
