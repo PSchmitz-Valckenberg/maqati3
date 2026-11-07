@@ -155,7 +155,11 @@
       "claimedByOther": "Someone else is working on this language.",
       "emptyText": "A row cannot be left empty. Its second still belongs to it.",
       "invalidTransition": "That step is not possible from where this language stands. The page was reloaded.",
-      "reviewNotAvailable": "The review editor is not available on this server."
+      "reviewNotAvailable": "The review editor is not available on this server.",
+      "alreadyDrafted": "This entry already has a title, question and keywords.",
+      "metadataFailed": "The model could not draft them. Nothing was changed. Please try again.",
+      "emptyTitle": "An entry needs a title.",
+      "metadataNotConfigured": "This server has no model set up for metadata."
     },
     "play": "Play",
     "log": {
@@ -199,7 +203,21 @@
       "unsaved": "Unsaved changes",
       "hint": "One row per moment. Click a row to play from there. Rows are edited, never added or removed.",
       "requestDrafts": "Request English and German drafts",
-      "draftsQueued": "Drafts requested. They appear here in a moment."
+      "draftsQueued": "Drafts requested. They appear here in a moment.",
+      "metadata": {
+        "title": "About this entry",
+        "titleLabel": "Title",
+        "questionLabel": "Question asked",
+        "keywordsLabel": "Keywords (separated by commas)",
+        "draft": "Suggest title, question and keywords",
+        "drafting": "Asking the model…",
+        "waitingForArabic": "Approve the Arabic first. The suggestion is made from the approved text.",
+        "stateNone": "Nothing yet.",
+        "stateDraft": "Written by a model. Nobody has read it yet: check it and save.",
+        "stateConfirmed": "Saved by a person.",
+        "save": "Save",
+        "saved": "Saved"
+      }
     },
     "finished": {
       "title": "Finished ({count})"

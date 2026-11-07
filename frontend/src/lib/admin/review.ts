@@ -29,7 +29,49 @@ export type ReviewRow = {
   texts: Partial<Record<Lang, string>>;
 };
 
-export type Review = { entry_id: string; rows: ReviewRow[]; languages: Languages };
+export type MetadataState = 'none' | 'draft' | 'confirmed';
+
+/** Title, question and keywords of an entry. `draft` means a model wrote it and nobody
+ * has read it; `confirmed` means a person saved it. */
+export type Metadata = {
+  title: string;
+  question: string;
+  keywords: string[];
+  state: MetadataState;
+};
+
+export type Review = {
+  entry_id: string;
+  rows: ReviewRow[];
+  languages: Languages;
+  metadata: Metadata | null;
+};
+
+/** Whether to offer the metadata draft. The server refuses without a model, before the
+ * Arabic is approved, and over anything already there; a button that can only fail is
+ * worse than none. */
+export function canDraftMetadata({
+  available,
+  arabicApproved,
+  state,
+}: {
+  available: boolean;
+  arabicApproved: boolean;
+  state: MetadataState;
+}): boolean {
+  return available && arabicApproved && state === 'none';
+}
+
+/** Keywords as a person types them, separated by commas: lowercase, no empties, no
+ * repeats. The server tidies them again; this only shows what will be saved. */
+export function keywordsFromText(text: string): string[] {
+  const words: string[] = [];
+  for (const part of text.split(',')) {
+    const word = part.trim().toLowerCase();
+    if (word !== '' && !words.includes(word)) words.push(word);
+  }
+  return words;
+}
 
 export type MoveOption = { to: ReviewState; key: 'take' | 'handOn' | 'approve' | 'sendBack' };
 

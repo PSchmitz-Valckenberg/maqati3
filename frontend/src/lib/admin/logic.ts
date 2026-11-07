@@ -143,6 +143,10 @@ const ERROR_KEYS: Record<string, string> = {
   empty_text: 'emptyText',
   invalid_transition: 'invalidTransition',
   review_not_available: 'reviewNotAvailable',
+  already_drafted: 'alreadyDrafted',
+  metadata_failed: 'metadataFailed',
+  empty_title: 'emptyTitle',
+  metadata_not_configured: 'metadataNotConfigured',
   network: 'network',
 };
 

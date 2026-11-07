@@ -13,6 +13,8 @@ export type Me = {
   name: string | null;
   transcription: boolean;
   translation: boolean;
+  /** Whether the server has a model to draft an entry's title, question and keywords. */
+  metadata: boolean;
 };
 
 export type LogEntry = {
@@ -106,6 +108,16 @@ export const saveRow = (entryId: string, idx: number, lang: Lang, text: string) 
 /** Take a language, hand it on, approve it or send it back: one step of the state machine. */
 export const moveLanguage = (entryId: string, lang: Lang, to: ReviewState) =>
   post<{ state: ReviewState }>(`${entryPath(entryId)}/languages/${lang}/state`, { to });
+
+/** Ask the model for a title, question and keywords, from the approved Arabic. */
+export const draftMetadata = (entryId: string) =>
+  post<{ status: string }>(`${entryPath(entryId)}/metadata/draft`);
+
+/** A person's own words. The server marks the metadata confirmed. */
+export const saveMetadata = (
+  entryId: string,
+  fields: { title: string; question: string; keywords: string[] },
+) => put<{ status: string }>(`${entryPath(entryId)}/metadata`, fields);
 
 export const signOut = () => post<{ status: string }>('/api/v1/admin/auth/logout');
 

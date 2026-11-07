@@ -4,11 +4,13 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   AdminError,
+  draftMetadata,
   fetchMe,
   fetchReview,
   mediaUrl,
   moveLanguage,
   requestTranslation,
+  saveMetadata,
   saveRow,
 } from '@/lib/admin/api';
 import { canTranslate, errorKey } from '@/lib/admin/logic';
@@ -24,6 +26,7 @@ import {
 } from '@/lib/admin/review';
 import { findActiveCue } from '@/lib/cues';
 import { formatDuration } from '@/lib/uploads/batch';
+import MetadataPanel from './MetadataPanel';
 
 const LANGUAGE_NAMES: Record<Lang, string> = { ar: 'العربية', en: 'English', de: 'Deutsch' };
 const BUTTON =
@@ -54,6 +57,7 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
   const [me, setMe] = useState<string | null>(null);
   const [translation, setTranslation] = useState(false);
   const [queued, setQueued] = useState(false);
+  const [metadataAvailable, setMetadataAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTimes, setShowTimes] = useState(false);
   const [active, setActive] = useState(-1);
@@ -80,6 +84,7 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
         setReview(loaded);
         setMe(who.email);
         setTranslation(who.translation);
+        setMetadataAvailable(who.metadata);
       })
       .catch((caught) => setError(codeOf(caught)));
   }, [entryId]);
@@ -102,6 +107,34 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
     }
     await reload();
     setBusy(false);
+  }
+
+  async function suggestMetadata() {
+    setBusy(true);
+    setError(null);
+    try {
+      await draftMetadata(entryId);
+    } catch (caught) {
+      setError(codeOf(caught));
+    }
+    await reload();
+    setBusy(false);
+  }
+
+  async function storeMetadata(fields: {
+    title: string;
+    question: string;
+    keywords: string[];
+  }): Promise<boolean> {
+    setError(null);
+    try {
+      await saveMetadata(entryId, fields);
+    } catch (caught) {
+      setError(codeOf(caught));
+      return false;
+    }
+    await reload();
+    return true;
   }
 
   const cues = useMemo(() => rowCues(review?.rows ?? []), [review]);
@@ -257,6 +290,15 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
           review.languages.de?.state === 'not_started') && (
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('draftsQueued')}</p>
         )}
+
+      <MetadataPanel
+        metadata={review.metadata}
+        available={metadataAvailable}
+        arabicApproved={review.languages.ar?.state === 'approved'}
+        busy={busy}
+        onDraft={() => void suggestMetadata()}
+        onSave={storeMetadata}
+      />
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={showTimes} onChange={(e) => setShowTimes(e.target.checked)} />
