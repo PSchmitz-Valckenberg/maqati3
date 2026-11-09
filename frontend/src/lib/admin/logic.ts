@@ -146,6 +146,7 @@ const ERROR_KEYS: Record<string, string> = {
   already_drafted: 'alreadyDrafted',
   metadata_failed: 'metadataFailed',
   empty_title: 'emptyTitle',
+  role_not_set: 'roleNotSet',
   metadata_not_configured: 'metadataNotConfigured',
   network: 'network',
 };

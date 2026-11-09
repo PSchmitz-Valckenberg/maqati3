@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   AdminError,
+  confirmSecond,
   draftMetadata,
   fetchMe,
   fetchReview,
@@ -11,12 +12,14 @@ import {
   moveLanguage,
   requestTranslation,
   saveMetadata,
+  saveRole,
   saveRow,
 } from '@/lib/admin/api';
 import { canTranslate, errorKey } from '@/lib/admin/logic';
 import {
   availableMoves,
   canEdit,
+  canJudgeRows,
   isDirty,
   languageOrder,
   rowCues,
@@ -28,6 +31,7 @@ import { findActiveCue } from '@/lib/cues';
 import { formatDuration } from '@/lib/uploads/batch';
 import BidiText from '@/components/BidiText';
 import MetadataPanel from './MetadataPanel';
+import RowJudgement from './RowJudgement';
 
 const LANGUAGE_NAMES: Record<Lang, string> = { ar: 'العربية', en: 'English', de: 'Deutsch' };
 const BUTTON =
@@ -115,6 +119,19 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
     setError(null);
     try {
       await draftMetadata(entryId);
+    } catch (caught) {
+      setError(codeOf(caught));
+    }
+    await reload();
+    setBusy(false);
+  }
+
+  /** A change to a row's speaker or second: the server decides, the page shows its answer. */
+  async function judge(change: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await change();
     } catch (caught) {
       setError(codeOf(caught));
     }
@@ -349,6 +366,17 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
                 />
               );
             })}
+            {review.languages.ar !== undefined && (
+              <RowJudgement
+                row={row}
+                editable={canJudgeRows(review.languages, me)}
+                busy={busy}
+                onRole={(role) => void judge(() => saveRole(entryId, row.idx, role))}
+                onConfirm={(confirmed) =>
+                  void judge(() => confirmSecond(entryId, row.idx, confirmed))
+                }
+              />
+            )}
           </li>
         ))}
       </ol>

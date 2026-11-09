@@ -4,7 +4,7 @@
  * that are really the dashboard's own.
  */
 import type { Item, Scholar } from './logic';
-import type { Lang, Review, ReviewState } from './review';
+import type { Lang, Review, ReviewState, SpanRole } from './review';
 
 /** `transcription` says whether this server has a speech-to-text provider; without
  * one the route answers 503 and the page does not offer the button. */
@@ -104,6 +104,14 @@ export const fetchReview = (entryId: string) => call<Review>(`${entryPath(entryI
 /** Replace one row's text. The server refuses unless this admin has taken the language. */
 export const saveRow = (entryId: string, idx: number, lang: Lang, text: string) =>
   put<{ status: string }>(`${entryPath(entryId)}/rows/${idx}/${lang}`, { text });
+
+/** Say whose words a row holds. Only `scholar_own` is ever quotable. */
+export const saveRole = (entryId: string, idx: number, role: SpanRole) =>
+  put<{ status: string }>(`${entryPath(entryId)}/rows/${idx}/role`, { role });
+
+/** A person confirms (or takes back) that a row really starts at its second. */
+export const confirmSecond = (entryId: string, idx: number, confirmed: boolean) =>
+  put<{ status: string }>(`${entryPath(entryId)}/rows/${idx}/timestamp`, { confirmed });
 
 /** Take a language, hand it on, approve it or send it back: one step of the state machine. */
 export const moveLanguage = (entryId: string, lang: Lang, to: ReviewState) =>

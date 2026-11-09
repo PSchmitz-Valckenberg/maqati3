@@ -22,11 +22,27 @@ export type LanguageInfo = { state: ReviewState; assignee: string | null };
 export type Languages = Partial<Record<Lang, LanguageInfo>>;
 
 /** What `/api/v1/admin/entries/{id}/review` says about one moment. */
+export type SpanRole = 'unclear' | 'scholar_own' | 'questioner' | 'quoted_other' | 'recited_text';
+
+/** The five, with the unclear one first: it is what every row starts as, and only
+ * `scholar_own` is ever quotable. */
+export const SPAN_ROLES: readonly SpanRole[] = [
+  'unclear',
+  'scholar_own',
+  'questioner',
+  'quoted_other',
+  'recited_text',
+];
+
 export type ReviewRow = {
   idx: number;
   t_start_ms: number;
   t_end_ms: number | null;
   texts: Partial<Record<Lang, string>>;
+  /** Whose words these are. */
+  span_role: SpanRole;
+  /** Whether a person has confirmed this row's second. */
+  citable: boolean;
 };
 
 export type MetadataState = 'none' | 'draft' | 'confirmed';
@@ -119,4 +135,16 @@ export function isDirty(saved: string, draft: string): boolean {
 /** Arabic first, then the other languages in a fixed order, only those that exist. */
 export function languageOrder(languages: Languages): Lang[] {
   return ORDER.filter((lang) => languages[lang] !== undefined);
+}
+
+/** Who speaks is judged on what was said, so only the person working on the Arabic may
+ * set a role or confirm a second. The server enforces the same rule. */
+export function canJudgeRows(languages: Languages, me: string): boolean {
+  return canEdit(languages.ar, me);
+}
+
+/** A second is confirmed once the speaker is known. Taking a confirmation back is always
+ * possible, and the server refuses only the confirming of an `unclear` row. */
+export function canConfirmSecond(row: ReviewRow): boolean {
+  return row.span_role !== 'unclear' || row.citable;
 }

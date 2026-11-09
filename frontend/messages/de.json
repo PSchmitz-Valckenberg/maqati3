@@ -159,6 +159,7 @@
       "alreadyDrafted": "Dieser Eintrag hat schon Titel, Frage und Stichwörter.",
       "metadataFailed": "Das Modell konnte sie nicht erstellen. Es wurde nichts geändert. Bitte noch einmal versuchen.",
       "emptyTitle": "Ein Eintrag braucht einen Titel.",
+      "roleNotSet": "Sag zuerst, wer in dieser Zeile spricht. Eine Sekunde wird nur für einen bekannten Sprecher bestätigt.",
       "metadataNotConfigured": "Auf diesem Server ist kein Modell für Metadaten eingerichtet."
     },
     "play": "Abspielen",
@@ -204,6 +205,16 @@
       "hint": "Eine Zeile pro Moment. Klick auf eine Zeile spielt ab dort. Zeilen werden bearbeitet, nie hinzugefügt oder entfernt.",
       "requestDrafts": "Entwürfe für Englisch und Deutsch anfordern",
       "draftsQueued": "Entwürfe angefordert. Sie erscheinen gleich hier.",
+      "roleLabel": "Wer spricht",
+      "role": {
+        "unclear": "Unklar",
+        "scholar_own": "Der Gelehrte selbst",
+        "questioner": "Der Fragesteller",
+        "quoted_other": "Zitiert eine andere Person",
+        "recited_text": "Ein rezitierter Text"
+      },
+      "secondConfirmed": "Die Sekunde stimmt",
+      "secondHint": "Nur die eigenen Worte des Gelehrten mit bestätigter Sekunde können je zitiert werden.",
       "metadata": {
         "title": "Über diesen Eintrag",
         "titleLabel": "Titel",

@@ -159,6 +159,7 @@
       "alreadyDrafted": "This entry already has a title, question and keywords.",
       "metadataFailed": "The model could not draft them. Nothing was changed. Please try again.",
       "emptyTitle": "An entry needs a title.",
+      "roleNotSet": "Say who is speaking on this row first. A second is confirmed only for a known speaker.",
       "metadataNotConfigured": "This server has no model set up for metadata."
     },
     "play": "Play",
@@ -204,6 +205,16 @@
       "hint": "One row per moment. Click a row to play from there. Rows are edited, never added or removed.",
       "requestDrafts": "Request English and German drafts",
       "draftsQueued": "Drafts requested. They appear here in a moment.",
+      "roleLabel": "Who is speaking",
+      "role": {
+        "unclear": "Unclear",
+        "scholar_own": "The scholar himself",
+        "questioner": "The questioner",
+        "quoted_other": "Quoting someone else",
+        "recited_text": "A recited text"
+      },
+      "secondConfirmed": "The second is confirmed",
+      "secondHint": "Only the scholar's own words, with a confirmed second, can ever be quoted.",
       "metadata": {
         "title": "About this entry",
         "titleLabel": "Title",
