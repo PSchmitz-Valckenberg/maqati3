@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from maqati3.domain import Lang, ReviewState
+from maqati3.domain import Lang, ReviewState, SpanRole
 from maqati3.translation import ArabicNotApproved
 
 
@@ -40,6 +40,14 @@ class EmptyText(ValueError):
     """A row is never emptied: an empty row is a deleted row that still holds its second."""
 
 
+class RoleNotSet(ValueError):
+    """A second is confirmed only on a row whose speaker is known.
+
+    `unclear` is the default of every row. Confirming the second of a row nobody has
+    attributed would produce a flag that looks finished and still quotes nothing.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class ReviewRow:
     """One moment: where it is in the recording and what was said in each language."""
@@ -48,6 +56,10 @@ class ReviewRow:
     t_start_ms: int
     t_end_ms: int | None
     texts: dict[Lang, str]
+    #: Whose words these are. Only `scholar_own` is ever quotable.
+    span_role: SpanRole = SpanRole.UNCLEAR
+    #: Whether a person has confirmed this row's second.
+    citable: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +99,21 @@ class Review(Protocol):
         """
         ...
 
+    def set_role(self, entry_id: str, idx: int, role: SpanRole, actor: str) -> None:
+        """Say whose words a row holds. Withdraws a confirmed second if the role changes.
+
+        Needs the Arabic taken by `actor`. Raises `UnknownEntry`, `NotInProgress`,
+        `ClaimedByOther` or `UnknownRow`, and in every one of those cases changes nothing.
+        """
+        ...
+
+    def confirm_timestamp(self, entry_id: str, idx: int, confirmed: bool, actor: str) -> None:
+        """A person confirms (or takes back) that this row starts at its second.
+
+        Same gate as `set_role`, and additionally `RoleNotSet` while the row is `unclear`.
+        """
+        ...
+
 
 __all__ = [
     "ArabicNotApproved",
@@ -97,5 +124,6 @@ __all__ = [
     "Review",
     "ReviewRow",
     "ReviewView",
+    "RoleNotSet",
     "UnknownRow",
 ]

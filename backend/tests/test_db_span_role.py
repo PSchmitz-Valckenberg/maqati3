@@ -10,6 +10,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
+from maqati3.db.review import PgReview
+from maqati3.domain import Lang, SpanRole
+from maqati3.review import ClaimedByOther, NotInProgress, RoleNotSet, UnknownRow
+from maqati3.transcription import UnknownEntry
 from test_db_review import (
     AISHA,
     YUSUF,
@@ -19,11 +24,6 @@ from test_db_review import (
     set_state,
     transcribed_entry,
 )
-
-from maqati3.db.review import PgReview
-from maqati3.domain import Lang, SpanRole
-from maqati3.review import ClaimedByOther, NotInProgress, RoleNotSet, UnknownRow
-from maqati3.transcription import UnknownEntry
 
 
 def working_entry(executor: Any, connection: Any) -> str:

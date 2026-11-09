@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 
 from maqati3.db.sql import Executor
-from maqati3.domain import Lang, ReviewState
+from maqati3.domain import Lang, ReviewState, SpanRole
 from maqati3.register.states import InvalidTransition, advance, can_start_translation
 from maqati3.review import (
     ClaimedByOther,
@@ -20,6 +20,7 @@ from maqati3.review import (
     NotInProgress,
     ReviewRow,
     ReviewView,
+    RoleNotSet,
     UnknownRow,
 )
 from maqati3.transcription import UnknownEntry
@@ -29,7 +30,7 @@ _ENTRY_EXISTS = "SELECT 1 FROM entry WHERE id = %s"
 _LOCK_ENTRY = "SELECT 1 FROM entry WHERE id = %s FOR UPDATE"
 
 _ROWS = """
-SELECT s.idx, s.t_start_ms, s.t_end_ms, t.lang, t.text_raw
+SELECT s.idx, s.t_start_ms, s.t_end_ms, t.lang, t.text_raw, s.span_role, s.citable
   FROM segment s LEFT JOIN segment_text t ON t.segment_id = s.id
  WHERE s.entry_id = %s ORDER BY s.idx
 """
@@ -50,6 +51,9 @@ _UPDATE_STATE = """
 UPDATE entry_language SET state = %s, assignee = %s, updated_at = now()
  WHERE entry_id = %s AND lang = %s
 """
+_ROW_FLAGS = "SELECT id, span_role, citable FROM segment WHERE entry_id = %s AND idx = %s"
+_SET_ROLE = "UPDATE segment SET span_role = %s, citable = %s WHERE id = %s"
+_SET_CITABLE = "UPDATE segment SET citable = %s WHERE id = %s"
 _LOG = """
 INSERT INTO revision_log (entity, entity_id, action, actor, detail)
 VALUES (%s, %s, %s, %s, %s::jsonb)
@@ -64,7 +68,9 @@ class PgReview:
         if not self._executor.fetchall(_ENTRY_EXISTS, (entry_id,)):
             return None
         rows: dict[int, ReviewRow] = {}
-        for idx, start, end, lang, text in self._executor.fetchall(_ROWS, (entry_id,)):
+        for idx, start, end, lang, text, role, citable in self._executor.fetchall(
+            _ROWS, (entry_id,)
+        ):
             row = rows.setdefault(
                 int(str(idx)),
                 ReviewRow(
@@ -72,6 +78,8 @@ class PgReview:
                     t_start_ms=int(str(start)),
                     t_end_ms=None if end is None else int(str(end)),
                     texts={},
+                    span_role=SpanRole(str(role)),
+                    citable=bool(citable),
                 ),
             )
             if lang is not None:
@@ -113,6 +121,49 @@ class PgReview:
                 ),
             )
 
+    def set_role(self, entry_id: str, idx: int, role: SpanRole, actor: str) -> None:
+        with self._executor.transaction():
+            segment_id, before, citable = self._row_for_judgement(entry_id, idx, actor)
+            if before is role:
+                return
+            # The second was confirmed for another judgement; this one needs its own.
+            self._executor.execute(_SET_ROLE, (role.value, False, segment_id))
+            self._executor.execute(
+                _LOG,
+                (
+                    "segment",
+                    f"{entry_id}:{idx}",
+                    "span_role",
+                    actor,
+                    json.dumps(
+                        {
+                            "before": before.value,
+                            "after": role.value,
+                            "citable_withdrawn": citable,
+                        }
+                    ),
+                ),
+            )
+
+    def confirm_timestamp(self, entry_id: str, idx: int, confirmed: bool, actor: str) -> None:
+        with self._executor.transaction():
+            segment_id, role, citable = self._row_for_judgement(entry_id, idx, actor)
+            if confirmed and role is SpanRole.UNCLEAR:
+                raise RoleNotSet(f"{entry_id} row {idx}")
+            if citable is confirmed:
+                return
+            self._executor.execute(_SET_CITABLE, (confirmed, segment_id))
+            self._executor.execute(
+                _LOG,
+                (
+                    "segment",
+                    f"{entry_id}:{idx}",
+                    "citable",
+                    actor,
+                    json.dumps({"before": citable, "after": confirmed}),
+                ),
+            )
+
     def move(self, entry_id: str, lang: Lang, to: ReviewState, actor: str) -> ReviewState:
         with self._executor.transaction():
             self._lock(entry_id)
@@ -140,6 +191,22 @@ class PgReview:
         return new
 
     # ------------------------------------------------------------------ helpers
+
+    def _row_for_judgement(
+        self, entry_id: str, idx: int, actor: str
+    ) -> tuple[object, SpanRole, bool]:
+        """Lock the entry and return the row, after the same gate an edit passes: the
+        Arabic is being worked on, by `actor`. Who speaks is judged on what was said."""
+        self._lock(entry_id)
+        state, assignee = self._state(entry_id, Lang.AR)
+        if state is not ReviewState.IN_PROGRESS:
+            raise NotInProgress(f"{entry_id} ar is {state.value}")
+        if assignee != actor:
+            raise ClaimedByOther(f"{entry_id} ar is taken by {assignee}")
+        found = self._executor.fetchall(_ROW_FLAGS, (entry_id, idx))
+        if not found:
+            raise UnknownRow(f"{entry_id} has no row {idx}")
+        return found[0][0], SpanRole(str(found[0][1])), bool(found[0][2])
 
     def _lock(self, entry_id: str) -> None:
         if not self._executor.fetchall(_LOCK_ENTRY, (entry_id,)):
