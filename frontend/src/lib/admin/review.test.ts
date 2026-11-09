@@ -5,7 +5,10 @@ import en from '../../../messages/en.json';
 import { errorKey } from './logic';
 import {
   availableMoves,
+  canConfirmSecond,
   canDraftMetadata,
+  canJudgeRows,
+  SPAN_ROLES,
   canEdit,
   keywordsFromText,
   isDirty,
@@ -177,6 +180,54 @@ describe('metadata', () => {
       for (const m of [en, de, ar]) {
         expect((m.admin.error as Record<string, string>)[key]).toBeTruthy();
       }
+    }
+  });
+});
+
+describe('who speaks on a row (issue #26)', () => {
+  const row = (span_role: ReviewRow['span_role'], citable = false): ReviewRow => ({
+    idx: 0,
+    t_start_ms: 0,
+    t_end_ms: 1000,
+    texts: { ar: 'أ' },
+    span_role,
+    citable,
+  });
+
+  it('offers exactly the five roles, the unclear one first', () => {
+    expect(SPAN_ROLES).toEqual([
+      'unclear',
+      'scholar_own',
+      'questioner',
+      'quoted_other',
+      'recited_text',
+    ]);
+  });
+
+  it('roles are judged only by the person who has taken the Arabic', () => {
+    expect(canJudgeRows({ ar: { state: 'in_progress', assignee: ME } }, ME)).toBe(true);
+    expect(canJudgeRows({ ar: { state: 'in_progress', assignee: OTHER } }, ME)).toBe(false);
+    expect(canJudgeRows({ ar: { state: 'approved', assignee: ME } }, ME)).toBe(false);
+    expect(canJudgeRows({ en: { state: 'in_progress', assignee: ME } }, ME)).toBe(false);
+  });
+
+  it('a second can be confirmed once the speaker is known, and never before', () => {
+    expect(canConfirmSecond(row('unclear'))).toBe(false);
+    for (const role of ['scholar_own', 'questioner', 'quoted_other', 'recited_text'] as const) {
+      expect(canConfirmSecond(row(role))).toBe(true);
+    }
+  });
+
+  it('a confirmation that was made can always be taken back', () => {
+    expect(canConfirmSecond(row('scholar_own', true))).toBe(true);
+  });
+
+  it('every role and the new refusal are told in words in every language', () => {
+    expect(errorKey('role_not_set')).toBe('roleNotSet');
+    for (const m of [en, de, ar]) {
+      expect((m.admin.error as Record<string, string>).roleNotSet).toBeTruthy();
+      const roles = (m.admin.review as unknown as { role: Record<string, string> }).role;
+      for (const role of SPAN_ROLES) expect(roles[role], role).toBeTruthy();
     }
   });
 });
