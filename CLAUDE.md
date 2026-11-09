@@ -285,10 +285,17 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    `register.states`**, a draft is made by the worker and never by a click, and **no
    translation is taken before the Arabic is approved**. Edited text becomes provenance
    `human` and its `text_norm` is cleared. The actor is always the signed-in admin, never a
-   name in the request. Not built yet: virtualised list (fine up to a few hundred rows),
-   `span_role` per row (#26), takeover of an abandoned claim (#24, undecided: for now there is
-   none), the revision log for attribution changes (#27 covers only text and state so far),
-   and a browser test of the page itself (tested through the API and the logic only).
+   name in the request. *Who speaks, built 2026-11-10 (#26):* every row starts `unclear`, and
+   the person who has taken the Arabic sets one of the five roles and ticks "the second is
+   confirmed" (`citable`). Rules, each tested: only while the Arabic is in progress and by
+   whoever took it; a second cannot be confirmed on an `unclear` row; **changing the role
+   withdraws a confirmed second** (it was confirmed for another judgement); every change in
+   `revision_log`. The existing view `segment_citable` is what makes it count: a line is
+   quotable only if it is `scholar_own`, `citable`, in an approved language of a public,
+   attributed entry. Not built yet: virtualised list (fine up to a few hundred rows),
+   takeover of an abandoned claim (#24, undecided: for now there is none), the revision log
+   for attribution changes (#27 covers text, state, role, second and metadata so far), and a
+   browser test of the page itself (tested through the API and the logic only).
    *Metadata, built 2026-11-07* (replaces the old step 7 of the flow): once the Arabic is
    approved, a button on the review page asks Claude Haiku for a **title, the question that was
    asked, and keywords**, in English only (decided: metadata in English). Keywords are free
