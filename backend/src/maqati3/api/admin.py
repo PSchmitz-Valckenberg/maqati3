@@ -40,7 +40,7 @@ from maqati3.api.desk import (
 from maqati3.api.routes import PREVIEW_TYPES, Store
 from maqati3.api.schemas import ScholarOut
 from maqati3.auth.identity import IdentityError, IdentityProvider
-from maqati3.domain import Lang, ReviewState
+from maqati3.domain import Lang, ReviewState, SpanRole
 from maqati3.metadata import (
     AlreadyDrafted,
     EmptyTitle,
@@ -56,6 +56,7 @@ from maqati3.review import (
     NotInProgress,
     Review,
     ReviewView,
+    RoleNotSet,
     UnknownRow,
 )
 from maqati3.transcription import (
@@ -106,6 +107,7 @@ METADATA_NOT_CONFIGURED = "metadata_not_configured"
 ALREADY_DRAFTED = "already_drafted"
 METADATA_FAILED = "metadata_failed"
 EMPTY_TITLE = "empty_title"
+ROLE_NOT_SET = "role_not_set"
 
 #: A page of ours, as a path. Anything that could leave the site -- a scheme, a second
 #: slash, a backslash -- is not accepted, or the login would be an open redirect.
@@ -284,6 +286,8 @@ class RowOut(BaseModel):
     t_start_ms: int
     t_end_ms: int | None
     texts: dict[Lang, str]
+    span_role: SpanRole = SpanRole.UNCLEAR
+    citable: bool = False
 
 
 class LanguageOut(BaseModel):
@@ -327,7 +331,14 @@ class ReviewOut(BaseModel):
             metadata=None if metadata is None else MetadataOut.of(metadata),
             entry_id=view.entry_id,
             rows=[
-                RowOut(idx=r.idx, t_start_ms=r.t_start_ms, t_end_ms=r.t_end_ms, texts=r.texts)
+                RowOut(
+                    idx=r.idx,
+                    t_start_ms=r.t_start_ms,
+                    t_end_ms=r.t_end_ms,
+                    texts=r.texts,
+                    span_role=r.span_role,
+                    citable=r.citable,
+                )
                 for r in view.rows
             ],
             languages={
@@ -340,6 +351,14 @@ class ReviewOut(BaseModel):
 class EditIn(BaseModel):
     #: Only length is bounded here; whether it may be empty is the review's rule.
     text: Annotated[str, StringConstraints(max_length=5000)]
+
+
+class RoleIn(BaseModel):
+    role: SpanRole
+
+
+class SecondIn(BaseModel):
+    confirmed: bool
 
 
 class MoveIn(BaseModel):
@@ -574,6 +593,46 @@ def review_entry(
         raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY)
     metadata = config.metadata.get(entry_id) if config.metadata is not None else None
     return ReviewOut.of(view, metadata)
+
+
+# The fixed words 'role' and 'timestamp' come first: '/rows/{idx}/{lang}' would take them
+# for a language and answer 422.
+@router.put("/entries/{entry_id}/rows/{idx}/role", dependencies=Mutating)
+def set_row_role(
+    entry_id: str, idx: int, body: RoleIn, review: Reviewing, admin: Admin
+) -> StatusOut:
+    """Say whose words a row holds. Only `scholar_own` is ever quotable."""
+    try:
+        review.set_role(entry_id, idx, body.role, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except UnknownRow as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ROW) from exc
+    except NotInProgress as exc:
+        raise HTTPException(status_code=409, detail=NOT_IN_PROGRESS) from exc
+    except ClaimedByOther as exc:
+        raise HTTPException(status_code=409, detail=CLAIMED_BY_OTHER) from exc
+    return StatusOut(status="saved")
+
+
+@router.put("/entries/{entry_id}/rows/{idx}/timestamp", dependencies=Mutating)
+def confirm_row_second(
+    entry_id: str, idx: int, body: SecondIn, review: Reviewing, admin: Admin
+) -> StatusOut:
+    """A person confirms that the row really starts at its second."""
+    try:
+        review.confirm_timestamp(entry_id, idx, body.confirmed, admin.email)
+    except UnknownEntry as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ENTRY) from exc
+    except UnknownRow as exc:
+        raise HTTPException(status_code=404, detail=UNKNOWN_ROW) from exc
+    except NotInProgress as exc:
+        raise HTTPException(status_code=409, detail=NOT_IN_PROGRESS) from exc
+    except ClaimedByOther as exc:
+        raise HTTPException(status_code=409, detail=CLAIMED_BY_OTHER) from exc
+    except RoleNotSet as exc:
+        raise HTTPException(status_code=409, detail=ROLE_NOT_SET) from exc
+    return StatusOut(status="saved")
 
 
 @router.put("/entries/{entry_id}/rows/{idx}/{lang}", dependencies=Mutating)

@@ -154,6 +154,8 @@ def test_the_editor_reads_rows_and_the_state_of_every_language() -> None:
         "t_start_ms": 2500,
         "t_end_ms": 6000,
         "texts": {"ar": "هذا جائز.", "en": "This is permitted."},
+        "span_role": "unclear",
+        "citable": False,
     }
     assert body["languages"]["ar"] == {"state": "in_progress", "assignee": "yusuf@example.org"}
     assert body["languages"]["en"] == {"state": "draft_ready", "assignee": None}
