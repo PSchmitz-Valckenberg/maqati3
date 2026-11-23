@@ -88,14 +88,47 @@ describe("which moves the page offers", () => {
     ).toEqual(["approved", "needs_fixes"]);
   });
 
-  it.each(["approved", "not_started"] as const)(
-    "a language that is %s offers nothing",
-    (state) => {
-      expect(moves("ar", languages({ ar: { state, assignee: null } }))).toEqual(
-        [],
-      );
-    },
-  );
+  it("a language that has not started offers nothing", () => {
+    expect(
+      moves("ar", languages({ ar: { state: "not_started", assignee: null } })),
+    ).toEqual([]);
+  });
+
+  it("an approved language can be taken back, by anyone (decided 2026-11-23)", () => {
+    for (const assignee of [ME, OTHER, null]) {
+      expect(
+        moves("ar", languages({ ar: { state: "approved", assignee } })),
+      ).toEqual(["in_progress"]);
+    }
+    expect(
+      availableMoves(
+        "ar",
+        languages({ ar: { state: "approved", assignee: null } }),
+        ME,
+      ).map((m) => m.key),
+    ).toEqual(["reopen"]);
+  });
+
+  it("an approved translation can be taken back while the Arabic is approved", () => {
+    expect(
+      moves(
+        "en",
+        languages({ en: { state: "approved", assignee: OTHER } }),
+      ),
+    ).toEqual(["in_progress"]);
+  });
+
+  it("a translation sent back because the Arabic changed waits for the Arabic", () => {
+    expect(
+      moves(
+        "en",
+        languages({
+          ar: { state: "in_progress", assignee: ME },
+          en: { state: "needs_fixes", assignee: OTHER },
+        }),
+      ),
+    ).toEqual([]);
+  });
 
   it("a translation offers nothing while the Arabic is not approved", () => {
     expect(
@@ -276,6 +309,15 @@ describe("who speaks on a row (issue #26)", () => {
 
   it("a confirmation that was made can always be taken back", () => {
     expect(canConfirmSecond(row("scholar_own", true))).toBe(true);
+  });
+
+  it("the words for taking an approval back exist in every language", () => {
+    for (const m of [en, de, ar]) {
+      const review = m.admin.review as unknown as Record<string, unknown>;
+      expect((review.move as Record<string, string>).reopen).toBeTruthy();
+      expect(review.reopenConfirm).toBeTruthy();
+      expect(review.lockedHint).toBeTruthy();
+    }
   });
 
   it("every role and the new refusal are told in words in every language", () => {

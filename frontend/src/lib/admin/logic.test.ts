@@ -33,6 +33,7 @@ function item(overrides: Partial<Item> = {}): Item {
     translations_error: null,
     arabic_approved: false,
     all_approved: false,
+    title: null,
     ...overrides,
   };
 }
@@ -129,6 +130,17 @@ describe('slugFrom', () => {
   it('is empty when nothing usable is left, so the field is never pre-filled with junk', () => {
     expect(slugFrom('')).toBe('');
     expect(slugFrom('!!!')).toBe('');
+  });
+});
+
+describe('displayTitle: what a video is called in the lists', () => {
+  it('is the title that was described in the review, once there is one', () => {
+    expect(displayTitle(item({ title: "On kindness to one's mother" }))).toBe("On kindness to one's mother");
+  });
+
+  it('is the file name until then, never empty text', () => {
+    expect(displayTitle(item({ title: null, original_name: 'clip.mp4' }))).toBe('clip.mp4');
+    expect(displayTitle(item({ title: '  ', original_name: 'clip.mp4' }))).toBe('clip.mp4');
   });
 });
 
