@@ -6,6 +6,7 @@ import {
   canRegister,
   canTranscribe,
   canTranslate,
+  displayTitle,
   errorKey,
   groupItems,
   loginResult,

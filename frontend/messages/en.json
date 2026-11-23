@@ -195,7 +195,8 @@
         "take": "Take it",
         "handOn": "Hand on for checking",
         "approve": "Approve",
-        "sendBack": "Send back"
+        "sendBack": "Send back",
+        "reopen": "Take it back"
       },
       "approveConfirm": "Approve this language? Once approved it can no longer be edited.",
       "waitingForArabic": "Check and approve the Arabic first. The translations can be taken afterwards.",
@@ -229,7 +230,9 @@
         "stateConfirmed": "Saved by a person.",
         "save": "Save",
         "saved": "Saved"
-      }
+      },
+      "reopenConfirm": "Take this language back? It becomes unapproved and you can change it. Approved translations go back for checking when you take back the Arabic.",
+      "lockedHint": "Approved and locked. Take it back to change it."
     },
     "finished": {
       "title": "Finished ({count})"

@@ -195,7 +195,8 @@
         "take": "Übernehmen",
         "handOn": "Zur Kontrolle weitergeben",
         "approve": "Freigeben",
-        "sendBack": "Zurückgeben"
+        "sendBack": "Zurückgeben",
+        "reopen": "Zurücknehmen"
       },
       "approveConfirm": "Diese Sprache freigeben? Danach lässt sie sich nicht mehr bearbeiten.",
       "waitingForArabic": "Prüfe und gib zuerst das Arabische frei. Danach lassen sich die Übersetzungen übernehmen.",
@@ -229,7 +230,9 @@
         "stateConfirmed": "Von einem Menschen gespeichert.",
         "save": "Speichern",
         "saved": "Gespeichert"
-      }
+      },
+      "reopenConfirm": "Diese Sprache zurücknehmen? Sie ist dann nicht mehr freigegeben, und du kannst sie ändern. Beim Arabischen gehen freigegebene Übersetzungen zur erneuten Kontrolle zurück.",
+      "lockedHint": "Freigegeben und gesperrt. Zum Ändern zurücknehmen."
     },
     "finished": {
       "title": "Fertig ({count})"

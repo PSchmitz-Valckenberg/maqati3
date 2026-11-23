@@ -89,7 +89,7 @@ export function keywordsFromText(text: string): string[] {
   return words;
 }
 
-export type MoveOption = { to: ReviewState; key: 'take' | 'handOn' | 'approve' | 'sendBack' };
+export type MoveOption = { to: ReviewState; key: 'take' | 'handOn' | 'approve' | 'sendBack' | 'reopen' };
 
 const ORDER: Lang[] = ['ar', 'en', 'de'];
 
@@ -116,6 +116,11 @@ export function availableMoves(lang: string, languages: Languages, me: string): 
         { to: 'approved', key: 'approve' },
         { to: 'needs_fixes', key: 'sendBack' },
       ];
+    case 'approved':
+      // Decided 2026-11-23: approving is not the end. Anyone may take a language back and
+      // change it; the server sends approved translations back for checking when it is the
+      // Arabic, and the translations then wait for the Arabic to be approved again.
+      return [{ to: 'in_progress', key: 'reopen' }];
     default:
       return [];
   }

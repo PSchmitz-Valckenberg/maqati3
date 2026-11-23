@@ -22,6 +22,7 @@ import {
   canRegister,
   canTranscribe,
   canTranslate,
+  displayTitle,
   errorKey,
   groupItems,
   loginResult,
@@ -184,7 +185,9 @@ export default function AdminDashboard() {
                 key={item.sha256}
                 className="flex flex-wrap items-center gap-3 rounded-md border border-neutral-300 p-3 text-sm dark:border-neutral-700"
               >
-                <bdi className="font-semibold">{item.original_name}</bdi>
+                <bdi className="font-semibold" title={item.original_name}>
+                  {displayTitle(item)}
+                </bdi>
                 <span>
                   {item.entry && scholarLabel(item.entry.scholar, locale)} ·{' '}
                   <bdi>{item.entry?.entry_id}</bdi>
@@ -286,8 +289,13 @@ function Meta({ item }: { item: Item }) {
   return (
     <div className="space-y-1">
       <p className="font-semibold" dir="auto">
-        <bdi>{item.original_name}</bdi>
+        <bdi>{displayTitle(item)}</bdi>
       </p>
+      {item.title?.trim() && (
+        <p className="text-xs text-neutral-600 dark:text-neutral-400" dir="auto">
+          <bdi>{item.original_name}</bdi>
+        </p>
+      )}
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
         <bdi>{formatDuration(item.duration_ms)}</bdi> · {received}
         {item.contributor && <> · {t('from', { name: item.contributor })}</>}

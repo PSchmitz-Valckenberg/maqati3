@@ -33,6 +33,9 @@ export type Item = {
   translations_error: string | null;
   /** Whether a person has approved the Arabic. The drafts wait for it. */
   arabic_approved: boolean;
+  /** What the entry has been described as in the review (a model's draft or a person's
+   * words), or null until then. */
+  title: string | null;
   /** Every language approved: nothing is left for a reviewer to do. */
   all_approved: boolean;
 };
@@ -178,4 +181,11 @@ export function slugFrom(name: string): string {
  * it was and answered with a message that said nothing. Empty when nothing usable is left. */
 export function scholarIdFor(nameEn: string, typed: string, touched: boolean): string {
   return slugFrom(touched ? typed : nameEn);
+}
+
+/** What a video is called in the lists: the title written in the review once there is one,
+ * the file name until then. Never empty text. */
+export function displayTitle(item: Pick<Item, 'title' | 'original_name'>): string {
+  const title = item.title?.trim();
+  return title ? title : item.original_name;
 }

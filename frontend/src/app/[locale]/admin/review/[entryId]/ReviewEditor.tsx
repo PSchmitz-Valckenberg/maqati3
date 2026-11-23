@@ -1,7 +1,14 @@
-'use client';
+"use client";
 
-import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useLocale, useTranslations } from "next-intl";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   AdminError,
   confirmSecond,
@@ -14,8 +21,8 @@ import {
   saveMetadata,
   saveRole,
   saveRow,
-} from '@/lib/admin/api';
-import { canTranslate, errorKey } from '@/lib/admin/logic';
+} from "@/lib/admin/api";
+import { canTranslate, errorKey } from "@/lib/admin/logic";
 import {
   availableMoves,
   canEdit,
@@ -26,37 +33,41 @@ import {
   type Lang,
   type Review,
   type ReviewRow,
-} from '@/lib/admin/review';
-import { findActiveCue } from '@/lib/cues';
-import { formatDuration } from '@/lib/uploads/batch';
-import BidiText from '@/components/BidiText';
-import MetadataPanel from './MetadataPanel';
-import RowJudgement from './RowJudgement';
+} from "@/lib/admin/review";
+import { findActiveCue } from "@/lib/cues";
+import { formatDuration } from "@/lib/uploads/batch";
+import BidiText from "@/components/BidiText";
+import MetadataPanel from "./MetadataPanel";
+import RowJudgement from "./RowJudgement";
 
-const LANGUAGE_NAMES: Record<Lang, string> = { ar: 'العربية', en: 'English', de: 'Deutsch' };
+const LANGUAGE_NAMES: Record<Lang, string> = {
+  ar: "العربية",
+  en: "English",
+  de: "Deutsch",
+};
 const BUTTON =
-  'rounded-md px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50';
+  "rounded-md px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
 const PRIMARY = `${BUTTON} bg-emerald-700 text-white`;
 const SECONDARY = `${BUTTON} border border-neutral-400 bg-transparent`;
 
 function subscribeToLocation(onChange: () => void): () => void {
-  window.addEventListener('popstate', onChange);
-  return () => window.removeEventListener('popstate', onChange);
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
 }
 
 /** The upload's file is named in the address (`?m=<sha256>`); anything else is ignored. */
 function mediaOf(search: string): string | null {
-  const value = new URLSearchParams(search).get('m');
+  const value = new URLSearchParams(search).get("m");
   return value !== null && /^[0-9a-f]{64}$/.test(value) ? value : null;
 }
 
 function codeOf(error: unknown): string {
-  return error instanceof AdminError ? error.code : 'network';
+  return error instanceof AdminError ? error.code : "network";
 }
 
 export default function ReviewEditor({ entryId }: { entryId: string }) {
-  const t = useTranslations('admin.review');
-  const te = useTranslations('admin.error');
+  const t = useTranslations("admin.review");
+  const te = useTranslations("admin.error");
   const locale = useLocale();
   const [review, setReview] = useState<Review | null>(null);
   const [me, setMe] = useState<string | null>(null);
@@ -71,7 +82,7 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
   const search = useSyncExternalStore(
     subscribeToLocation,
     () => window.location.search,
-    () => '',
+    () => "",
   );
   const sha256 = mediaOf(search);
 
@@ -165,7 +176,12 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
   }
 
   async function move(lang: Lang, to: Parameters<typeof moveLanguage>[2]) {
-    if (to === 'approved' && !window.confirm(t('approveConfirm'))) return;
+    if (to === "approved" && !window.confirm(t("approveConfirm"))) return;
+    if (
+      review?.languages[lang]?.state === "approved" &&
+      !window.confirm(t("reopenConfirm"))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -177,14 +193,18 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
     setBusy(false);
   }
 
-  async function save(row: ReviewRow, lang: Lang, text: string): Promise<boolean> {
+  async function save(
+    row: ReviewRow,
+    lang: Lang,
+    text: string,
+  ): Promise<boolean> {
     setError(null);
     try {
       await saveRow(entryId, row.idx, lang, text);
     } catch (caught) {
       const code = codeOf(caught);
       setError(code);
-      if (code !== 'empty_text' && code !== 'network') await reload();
+      if (code !== "empty_text" && code !== "network") await reload();
       return false;
     }
     setReview((current) =>
@@ -193,7 +213,9 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
         : {
             ...current,
             rows: current.rows.map((r) =>
-              r.idx === row.idx ? { ...r, texts: { ...r.texts, [lang]: text.trim() } } : r,
+              r.idx === row.idx
+                ? { ...r, texts: { ...r.texts, [lang]: text.trim() } }
+                : r,
             ),
           },
     );
@@ -204,9 +226,9 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
   if (review === null || me === null) {
     return (
       <p>
-        {error !== null ? te(errorKey(error)) : t('loading')}{' '}
+        {error !== null ? te(errorKey(error)) : t("loading")}{" "}
         <a className="underline" href={back}>
-          {t('back')}
+          {t("back")}
         </a>
       </p>
     );
@@ -219,16 +241,19 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
     <div className="space-y-6">
       <header className="space-y-2">
         <a className="text-sm underline" href={back}>
-          {t('back')}
+          {t("back")}
         </a>
         <h1 className="text-2xl font-semibold">
-          {t('title')} · <bdi>{review.entry_id}</bdi>
+          {t("title")} · <bdi>{review.entry_id}</bdi>
         </h1>
-        <p className="text-neutral-600 dark:text-neutral-400">{t('hint')}</p>
+        <p className="text-neutral-600 dark:text-neutral-400">{t("hint")}</p>
       </header>
 
       {error !== null && (
-        <p role="alert" className="rounded-md border border-red-500 p-3 text-red-700 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-md border border-red-500 p-3 text-red-700 dark:text-red-300"
+        >
           {te(errorKey(error))}
         </p>
       )}
@@ -243,7 +268,9 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
             src={mediaUrl(sha256)}
             className="max-h-60 w-full rounded-md bg-black"
             onTimeUpdate={(event) =>
-              setActive(findActiveCue(cues, event.currentTarget.currentTime * 1000))
+              setActive(
+                findActiveCue(cues, event.currentTarget.currentTime * 1000),
+              )
             }
           />
         </div>
@@ -255,19 +282,29 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
           if (info === undefined) return null;
           const moves = availableMoves(lang, review.languages, me);
           return (
-            <div key={lang} className="flex flex-wrap items-center gap-3 rounded-md border border-neutral-300 p-3 dark:border-neutral-700">
+            <div
+              key={lang}
+              className="flex flex-wrap items-center gap-3 rounded-md border border-neutral-300 p-3 dark:border-neutral-700"
+            >
               <strong dir="auto">{LANGUAGE_NAMES[lang]}</strong>
               <span>{t(`state.${info.state}`)}</span>
-              {info.state === 'in_progress' && info.assignee !== null && (
+              {info.state === "in_progress" && info.assignee !== null && (
                 <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {info.assignee === me ? t('mine') : t('takenBy', { name: info.assignee })}
+                  {info.assignee === me
+                    ? t("mine")
+                    : t("takenBy", { name: info.assignee })}
                 </span>
               )}
-              {lang !== 'ar' &&
-                review.languages.ar?.state !== 'approved' &&
-                info.state === 'draft_ready' && (
+              {info.state === "approved" && (
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                  {t("lockedHint")}
+                </span>
+              )}
+              {lang !== "ar" &&
+                review.languages.ar?.state !== "approved" &&
+                info.state === "draft_ready" && (
                   <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                    {t('waitingForArabic')}
+                    {t("waitingForArabic")}
                   </span>
                 )}
               <span className="ms-auto flex gap-2">
@@ -276,7 +313,11 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
                     key={option.to}
                     type="button"
                     disabled={busy}
-                    className={option.key === 'sendBack' ? SECONDARY : PRIMARY}
+                    className={
+                      option.key === "sendBack" || option.key === "reopen"
+                        ? SECONDARY
+                        : PRIMARY
+                    }
                     onClick={() => void move(lang, option.to)}
                   >
                     {t(`move.${option.key}`)}
@@ -291,48 +332,59 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
       {canTranslate({
         translation,
         entryId: review.entry_id,
-        transcript: 'ready',
+        transcript: "ready",
         translations:
-          review.languages.en?.state === 'not_started' &&
-          review.languages.de?.state === 'not_started'
-            ? 'none'
-            : 'ready',
-        arabicApproved: review.languages.ar?.state === 'approved',
+          review.languages.en?.state === "not_started" &&
+          review.languages.de?.state === "not_started"
+            ? "none"
+            : "ready",
+        arabicApproved: review.languages.ar?.state === "approved",
       }) && (
-        <button type="button" className={PRIMARY} disabled={busy} onClick={() => void requestDrafts()}>
-          {t('requestDrafts')}
+        <button
+          type="button"
+          className={PRIMARY}
+          disabled={busy}
+          onClick={() => void requestDrafts()}
+        >
+          {t("requestDrafts")}
         </button>
       )}
       {queued &&
-        (review.languages.en?.state === 'not_started' ||
-          review.languages.de?.state === 'not_started') && (
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('draftsQueued')}</p>
+        (review.languages.en?.state === "not_started" ||
+          review.languages.de?.state === "not_started") && (
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            {t("draftsQueued")}
+          </p>
         )}
 
       <MetadataPanel
         metadata={review.metadata}
         available={metadataAvailable}
-        arabicApproved={review.languages.ar?.state === 'approved'}
+        arabicApproved={review.languages.ar?.state === "approved"}
         busy={busy}
         onDraft={() => void suggestMetadata()}
         onSave={storeMetadata}
       />
 
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={showTimes} onChange={(e) => setShowTimes(e.target.checked)} />
-        {t('times')}
+        <input
+          type="checkbox"
+          checked={showTimes}
+          onChange={(e) => setShowTimes(e.target.checked)}
+        />
+        {t("times")}
       </label>
 
       <ol className="space-y-3">
         {review.rows.map((row) => (
           <li
             key={row.idx}
-            aria-label={t('rowLabel', { n: row.idx + 1 })}
-            aria-current={active === row.idx ? 'true' : undefined}
+            aria-label={t("rowLabel", { n: row.idx + 1 })}
+            aria-current={active === row.idx ? "true" : undefined}
             className={`space-y-2 rounded-md border p-3 ${
               active === row.idx
-                ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950'
-                : 'border-neutral-300 dark:border-neutral-700'
+                ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950"
+                : "border-neutral-300 dark:border-neutral-700"
             }`}
           >
             {hasPlayer && (
@@ -340,12 +392,14 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
                 type="button"
                 className="text-sm underline"
                 onClick={() => seek(row)}
-                aria-label={t('rowLabel', { n: row.idx + 1 })}
+                aria-label={t("rowLabel", { n: row.idx + 1 })}
               >
-                {showTimes ? <bdi>{formatDuration(row.t_start_ms)}</bdi> : '▶'}
+                {showTimes ? <bdi>{formatDuration(row.t_start_ms)}</bdi> : "▶"}
               </button>
             )}
-            {!hasPlayer && showTimes && <bdi className="text-sm">{formatDuration(row.t_start_ms)}</bdi>}
+            {!hasPlayer && showTimes && (
+              <bdi className="text-sm">{formatDuration(row.t_start_ms)}</bdi>
+            )}
             {order.map((lang) => {
               const saved = row.texts[lang];
               if (saved === undefined) return null;
@@ -358,8 +412,10 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
                   editable={canEdit(review.languages[lang], me)}
                   // A click on text that is not yet mine takes the language, if it can be taken.
                   onTake={
-                    availableMoves(lang, review.languages, me).some((m) => m.key === 'take')
-                      ? () => move(lang, 'in_progress')
+                    availableMoves(lang, review.languages, me).some(
+                      (m) => m.key === "take",
+                    )
+                      ? () => move(lang, "in_progress")
                       : undefined
                   }
                   onSave={(text) => save(row, lang, text)}
@@ -371,7 +427,9 @@ export default function ReviewEditor({ entryId }: { entryId: string }) {
                 row={row}
                 editable={canJudgeRows(review.languages, me)}
                 busy={busy}
-                onRole={(role) => void judge(() => saveRole(entryId, row.idx, role))}
+                onRole={(role) =>
+                  void judge(() => saveRole(entryId, row.idx, role))
+                }
                 onConfirm={(confirmed) =>
                   void judge(() => confirmSecond(entryId, row.idx, confirmed))
                 }
@@ -397,19 +455,19 @@ function RowText({
   onTake?: () => Promise<void>;
   onSave: (text: string) => Promise<boolean>;
 }) {
-  const t = useTranslations('admin.review');
+  const t = useTranslations("admin.review");
   const [draft, setDraft] = useState(saved);
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [clicked, setClicked] = useState(false);
-  const dir = lang === 'ar' ? 'rtl' : 'ltr';
+  const dir = lang === "ar" ? "rtl" : "ltr";
 
   if (!editable) {
     return (
       <p
         dir={dir}
         lang={lang}
-        className={`whitespace-pre-wrap ${onTake ? 'cursor-text rounded hover:bg-neutral-800/40' : ''}`}
-        title={onTake ? t('readOnly') : undefined}
+        className={`whitespace-pre-wrap ${onTake ? "cursor-text rounded hover:bg-neutral-800/40" : ""}`}
+        title={onTake ? t("readOnly") : undefined}
         onClick={
           onTake
             ? () => {
@@ -435,18 +493,27 @@ function RowText({
         className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700"
         onChange={(event) => {
           setDraft(event.target.value);
-          setStatus('idle');
+          setStatus("idle");
         }}
         onBlur={async () => {
           if (!isDirty(saved, draft)) return;
-          setStatus('saving');
+          setStatus("saving");
           const ok = await onSave(draft);
-          setStatus(ok ? 'saved' : 'idle');
+          setStatus(ok ? "saved" : "idle");
           if (!ok) setDraft(saved);
         }}
       />
-      <p className="text-xs text-neutral-600 dark:text-neutral-400" aria-live="polite">
-        {status === 'saving' ? t('saving') : status === 'saved' ? t('saved') : isDirty(saved, draft) ? t('unsaved') : ''}
+      <p
+        className="text-xs text-neutral-600 dark:text-neutral-400"
+        aria-live="polite"
+      >
+        {status === "saving"
+          ? t("saving")
+          : status === "saved"
+            ? t("saved")
+            : isDirty(saved, draft)
+              ? t("unsaved")
+              : ""}
       </p>
     </div>
   );
