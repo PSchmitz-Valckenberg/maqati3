@@ -229,6 +229,7 @@ class DashboardItemOut(BaseModel):
     translations_error: str | None = None
     arabic_approved: bool = False
     all_approved: bool = False
+    title: str | None = None
 
     @classmethod
     def of(cls, item: DashboardItem) -> DashboardItemOut:
@@ -260,6 +261,7 @@ class DashboardItemOut(BaseModel):
             translations_error=item.translations_error,
             arabic_approved=item.arabic_approved,
             all_approved=item.all_approved,
+            title=item.title,
         )
 
 

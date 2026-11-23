@@ -306,7 +306,7 @@ def test_integration_an_edit_never_touches_the_timeline() -> None:
         ("in_progress", "approved"),
         ("in_progress", "draft_ready"),
         ("awaiting_review", "in_progress"),
-        ("approved", "in_progress"),
+        ("approved", "awaiting_review"),
         ("approved", "needs_fixes"),
         ("needs_fixes", "approved"),
     ],
@@ -508,7 +508,8 @@ def test_integration_taking_the_arabic_back_sends_approved_translations_back_for
         assert state_of(connection, entry_id, "en")[0] == "needs_fixes"
         assert state_of(connection, entry_id, "de")[0] == "draft_ready"
         logged = [(r[1], r[4]) for r in revisions(connection)]
-        assert (f"{entry_id}:en", {"from": "approved", "to": "needs_fixes", "because": "ar"}) in logged
+        expected = {"from": "approved", "to": "needs_fixes", "because": "ar"}
+        assert (f"{entry_id}:en", expected) in logged
         assert len(logged) == 2
 
 
@@ -525,7 +526,7 @@ def test_integration_taking_a_translation_back_leaves_the_arabic_alone() -> None
 
 
 @requires_database
-def test_integration_a_translation_cannot_be_taken_again_while_the_arabic_is_being_changed() -> None:
+def test_integration_a_translation_waits_while_the_arabic_is_being_changed() -> None:
     with migrated_schema() as (connection, executor):
         entry_id = drafted_entry(executor, connection)
         set_state(connection, entry_id, "en", "approved", YUSUF)

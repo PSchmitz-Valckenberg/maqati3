@@ -82,6 +82,9 @@ class DashboardItem:
     #: Every language approved: nothing is left for a reviewer, so the dashboard moves
     #: the entry out of the work list.
     all_approved: bool = False
+    #: What the entry's title says, once someone has described it (a model's draft or a
+    #: person's words). None until then: the page falls back to the file name.
+    title: str | None = None
 
 
 class Admins(Protocol):

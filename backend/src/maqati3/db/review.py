@@ -54,6 +54,14 @@ UPDATE entry_language SET state = %s, assignee = %s, updated_at = now()
 _ROW_FLAGS = "SELECT id, span_role, citable FROM segment WHERE entry_id = %s AND idx = %s"
 _SET_ROLE = "UPDATE segment SET span_role = %s, citable = %s WHERE id = %s"
 _SET_CITABLE = "UPDATE segment SET citable = %s WHERE id = %s"
+_APPROVED_TRANSLATIONS = """
+SELECT lang FROM entry_language
+ WHERE entry_id = %s AND lang <> 'ar' AND state = 'approved' ORDER BY lang
+"""
+_SEND_BACK = """
+UPDATE entry_language SET state = 'needs_fixes', updated_at = now()
+ WHERE entry_id = %s AND lang = %s
+"""
 _LOG = """
 INSERT INTO revision_log (entity, entity_id, action, actor, detail)
 VALUES (%s, %s, %s, %s, %s::jsonb)
@@ -188,6 +196,8 @@ class PgReview:
                     json.dumps({"from": current.value, "to": new.value}),
                 ),
             )
+            if lang is Lang.AR and current is ReviewState.APPROVED:
+                self._send_translations_back(entry_id, actor)
         return new
 
     # ------------------------------------------------------------------ helpers
@@ -207,6 +217,23 @@ class PgReview:
         if not found:
             raise UnknownRow(f"{entry_id} has no row {idx}")
         return found[0][0], SpanRole(str(found[0][1])), bool(found[0][2])
+
+    def _send_translations_back(self, entry_id: str, actor: str) -> None:
+        """The Arabic is being changed, so a translation approved against it says nothing any
+        more: it goes back to "needs fixes", in the same transaction, one log row each. One
+        that was never approved is left alone."""
+        for (translation,) in self._executor.fetchall(_APPROVED_TRANSLATIONS, (entry_id,)):
+            self._executor.execute(_SEND_BACK, (entry_id, str(translation)))
+            self._executor.execute(
+                _LOG,
+                (
+                    "entry_language",
+                    f"{entry_id}:{translation}",
+                    "state",
+                    actor,
+                    json.dumps({"from": "approved", "to": "needs_fixes", "because": "ar"}),
+                ),
+            )
 
     def _lock(self, entry_id: str) -> None:
         if not self._executor.fetchall(_LOCK_ENTRY, (entry_id,)):

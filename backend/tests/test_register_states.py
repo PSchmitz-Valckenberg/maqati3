@@ -97,7 +97,7 @@ def test_advance_accepts_a_stored_string_and_returns_an_enum_member() -> None:
 
 def test_advance_raises_invalid_transition_for_a_stored_string_outside_the_matrix() -> None:
     with pytest.raises(InvalidTransition):
-        advance("approved", "in_progress")
+        advance("approved", "awaiting_review")
 
 
 def test_advance_raises_invalid_transition_for_a_current_state_that_is_not_a_state() -> None:

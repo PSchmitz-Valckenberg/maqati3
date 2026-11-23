@@ -20,7 +20,9 @@ ALLOWED_TRANSITIONS: Mapping[ReviewState, frozenset[ReviewState]] = {
     ReviewState.IN_PROGRESS: frozenset({ReviewState.AWAITING_REVIEW}),
     ReviewState.AWAITING_REVIEW: frozenset({ReviewState.APPROVED, ReviewState.NEEDS_FIXES}),
     ReviewState.NEEDS_FIXES: frozenset({ReviewState.IN_PROGRESS}),
-    ReviewState.APPROVED: frozenset(),
+    # Decided 2026-11-23: approving is not the end. A person may take a language back and
+    # change it; it is then in progress again, and has to be handed on and approved again.
+    ReviewState.APPROVED: frozenset({ReviewState.IN_PROGRESS}),
 }
 
 
