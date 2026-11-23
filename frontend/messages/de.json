@@ -108,7 +108,8 @@
       "nameArLabel": "Name (arabisch)",
       "save": "Hinzufügen",
       "cancel": "Abbrechen",
-      "unclear": "Wenn du nicht erkennst, wer es ist, lass das Video einfach hier stehen."
+      "unclear": "Wenn du nicht erkennst, wer es ist, lass das Video einfach hier stehen.",
+      "idWillBe": "Wird gespeichert als: {id}"
     },
     "register": "Registrieren",
     "registerHint": "Legt den Eintrag an. Die Zuschreibung bleibt „nicht sicher“, bis sie jemand festlegt.",

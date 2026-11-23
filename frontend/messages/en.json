@@ -108,7 +108,8 @@
       "nameArLabel": "Name (Arabic)",
       "save": "Add",
       "cancel": "Cancel",
-      "unclear": "If you cannot tell who it is, just leave the video here."
+      "unclear": "If you cannot tell who it is, just leave the video here.",
+      "idWillBe": "Will be saved as: {id}"
     },
     "register": "Register",
     "registerHint": "Creates the entry. Its attribution stays “not sure” until someone sets it.",

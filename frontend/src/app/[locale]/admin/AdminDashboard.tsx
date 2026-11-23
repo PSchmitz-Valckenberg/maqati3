@@ -27,7 +27,7 @@ import {
   loginResult,
   loginUrl,
   scholarLabel,
-  slugFrom,
+  scholarIdFor,
   type Item,
   type Scholar,
 } from '@/lib/admin/logic';
@@ -441,14 +441,16 @@ function NewScholar({
   const [idTouched, setIdTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const shownId = idTouched ? id : slugFrom(nameEn);
-  const ready = shownId !== '' && nameEn.trim() !== '' && nameAr.trim() !== '' && !busy;
+  // What is shown in the box is what was typed; what is sent is the cleaned id.
+  const shownId = idTouched ? id : scholarIdFor(nameEn, '', false);
+  const cleanId = scholarIdFor(nameEn, id, idTouched);
+  const ready = cleanId !== '' && nameEn.trim() !== '' && nameAr.trim() !== '' && !busy;
 
   async function save() {
     setBusy(true);
     setError(null);
     try {
-      onAdded(await addScholar({ id: shownId, name_en: nameEn.trim(), name_ar: nameAr.trim() }));
+      onAdded(await addScholar({ id: cleanId, name_en: nameEn.trim(), name_ar: nameAr.trim() }));
     } catch (failure) {
       setError(codeOf(failure));
     } finally {
@@ -477,6 +479,11 @@ function NewScholar({
             setId(e.target.value);
           }}
         />
+        {cleanId !== '' && cleanId !== shownId && (
+          <span className="mt-1 block text-xs text-neutral-600 dark:text-neutral-400">
+            {t('scholar.idWillBe', { id: cleanId })}
+          </span>
+        )}
       </label>
       {error && <p className="text-sm text-red-700 dark:text-red-300">{t(`error.${errorKey(error)}`)}</p>}
       <div className="flex gap-3">

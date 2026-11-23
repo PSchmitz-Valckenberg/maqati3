@@ -171,3 +171,11 @@ export function slugFrom(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+/** The id that is sent when a scholar is added. Suggested from the English name until the
+ * field is edited by hand, and cleaned either way: the server only accepts lowercase
+ * letters, digits and single hyphens, and a typed "sheikh aziz al anzi" used to be sent as
+ * it was and answered with a message that said nothing. Empty when nothing usable is left. */
+export function scholarIdFor(nameEn: string, typed: string, touched: boolean): string {
+  return slugFrom(touched ? typed : nameEn);
+}
