@@ -388,7 +388,11 @@ Never decide these in a session:
 - `content_class` — which topic gets which class. What the classes *mean* is settled above; which topic falls into which is not, and `reference/topics.yml` does not carry the field yet.
 - Whether an entry is `held_back`
 - Approving any translation
-- Whether living scholars are included, and on what condition
+- Whether living scholars are included, and on what condition. *Decided by the maintainer
+  2026-11-23: whether a scholar is alive or dead does not matter for inclusion, so living
+  scholars are in, without a condition. Which scholars are on the list stays the maintainer's
+  call (`reference/scholars.csv` is still a draft); the "living" note in that file is
+  information only and nothing in the system reads it.*
 
 ## Version Control
 
