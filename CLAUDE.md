@@ -18,22 +18,27 @@ on purpose, because they record what was said at the time. The repo is public an
 source under the AGPL-3.0 (decided 2026-10-30); `CONTRIBUTING.md` is the contributors'
 entry point.
 
-**Status: bulk upload is built and deployed** on one Hetzner server behind a provisional
-DuckDNS name (`docs/BETRIEB.md`). Contributors upload up to 20 files at once
+**Status: everything below runs on one Hetzner server at `https://duraralulama.com`**
+(domain bought 2026-11-22, deployed 2026-11-23; `docs/BETRIEB.md`). The provisional DuckDNS name is
+gone, so every upload link has to be handed out again. Contributors upload up to 20 files at once
 (`/{locale}/upload#k=<UPLOAD_KEY>`), every file is checked live against the archive and
 against other pending uploads (SHA-256, then Chromaprint by bit error rate), the
 contributor decides on candidates, and kept uploads wait in `python -m maqati3 inbox` for
 an admin. **The admin dashboard is built** (`/{locale}/admin`): Google sign-in with an admin
 allowlist, a list of every kept upload with a player, *register* (choose the scholar → a draft
-entry, `not_sure`) and *discard*, every action logged. Tested locally in Chrome against a real
-database with a stand-in for Google; **not on the server yet**, and closed until a domain and a
-Google OAuth client exist (`docs/BETRIEB.md`, "Der Admin-Bereich"). **Transcription on demand
+entry, `not_sure`) and *discard*, every action logged. **It is live on the server** (2026-11-23):
+a real Google sign-in works, and an address that is not on the list is refused (`docs/BETRIEB.md`,
+"Der Admin-Bereich"). The OAuth consent screen is still in *Testing*, so only listed test users
+can sign in. **Transcription on demand
 is built** (2026-10-31): a *Transcribe* button on a registered entry queues one job, a second
 process (`python -m maqati3 worker`, its own container in `deploy/compose.yml`) runs it through
 Soniox and stores the draft. **Draft translations are built too** (2026-11-01): once an entry has
 Arabic, a second button queues one job per untouched language and Claude Haiku drafts it line by
 line. **The review editor is built too** (2026-11-06, first version): see "The Admin Workflow", step 4.
-Both providers have now run for real, locally, on one 80-second clip.
+Both providers have now run for real on two short clips (2026-11-06 and 2026-11-07, locally; the
+server has the keys but has not run a job yet); the measurement that decides the review workload, the bake-off on 20 real clips
+(#14), has not been done. **Not covered yet: backups of the server and the restore test
+(#7, #34).** The server holds the only copy of every upload until an admin registers it.
 
 **Wrong upload keys are rate-limited** (2026-10-31, `backend/src/maqati3/api/ratelimit.py`):
 30 wrong keys per client in 10 minutes, then 429. Only wrong keys count; a missing or a
@@ -41,8 +46,7 @@ right key never does. A blocked client is refused *before* the key is compared, 
 right one, otherwise the block only slows a guesser down. The client is the last
 `X-Forwarded-For` entry, honoured only with `TRUST_FORWARDED_FOR=true` (set in
 `deploy/compose.yml`, where only Caddy can reach the API); memory is capped and evicts the
-client with the fewest failures first. **Not on the server yet**, like everything since the
-upload. The upload page says what the 429 means in all three languages and offers the file
+client with the fewest failures first. On the server since 2026-11-23. The upload page says what the 429 means in all three languages and offers the file
 again, since the only thing in the way is the wait.
 
 The design documents in `docs/` now exist in English for `PIPELINE`, `BETRIEB`, `COSTS` and
@@ -247,9 +251,10 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    an advisory lock so two clicks in the same second cannot both pass it. A run that found no
    words, or a file with no audio at all, is terminal rather than retried four more times.
    Only the sound goes to the provider: ffmpeg makes 24 kbit/s mono Opus of it first
-   (`media.py`), which never touches the original and never moves the timeline. Nothing has yet run against
-   the real service: the call shapes come from Soniox's documentation and are tested against a
-   fake transport, so the first real run belongs on real material before it is trusted.
+   (`media.py`), which never touches the original and never moves the timeline. It has run against
+   the real service on two clips (2026-11-06/07), which found the word-pieces problem above; the
+   call shapes are otherwise tested against a fake transport, and old cassette material, where
+   20–40 % word error is expected, is still untested.
 
    *Draft translations, built 2026-11-01:* a second button, offered only once **a person has
    approved the Arabic** (decided 2026-11-06: why pay to translate a transcript that may be
@@ -322,9 +327,10 @@ Two constraints that follow from the integrity rules above:
 
 - **Admin routes fail closed.** Without a configured login they answer 401 and the
   dashboard's media route is not served. It is never deployed open.
-- **Google sign-in needs the final domain**, because Google pins the redirect address. The
-  provisional DuckDNS name is not enough, and DuckDNS is blocked by some home routers
-  anyway: buy the domain before the brothers get any link.
+- **Google sign-in needs the final domain**, because Google pins the redirect address. That
+  is why the domain (`duraralulama.com`) came before any link went out. A redirect URI has
+  to be added at Google for every address the dashboard is served from (also `localhost` for
+  local tests); a different domain later means one more URI, not a new client.
 
 Open: the claim's timeout and takeover rule; whether someone who corrected a language may
 approve it (single role for now, so yes, logged); what "scholar unclear" blocks.

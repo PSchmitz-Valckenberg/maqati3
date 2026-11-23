@@ -9,8 +9,12 @@ Getestet mit genau diesen Dateien (`deploy/`): am 2026-10-25 lokal (Arm, Chrome-
 Docker 29.9): Build, Start, echtes Let's-Encrypt-Zertifikat über Caddy, Test-Uploads
 (neu / identisch / neu kodierte Kopie / ohne Ton / Vorschau). Datenbank und Backend-Port
 sind von außen nicht erreichbar. **Der Admin-Bereich** (Dashboard) ist am 2026-10-27 lokal getestet
-(Chrome, echte Datenbank, ein Platzhalter statt Google) und noch **nicht auf dem Server**
-eingespielt; er bleibt dort ohnehin zu, bis Domain und Google-Zugang eingerichtet sind.
+und am **2026-11-23 auf dem Server eingespielt**: unter `https://duraralulama.com`, mit echtem
+Let's-Encrypt-Zertifikat, echter Google-Anmeldung und eingetragenem Admin. Eine nicht eingetragene
+Google-Adresse wird abgelehnt (getestet). Dabei lief auch der `worker`-Container zum ersten Mal.
+Gefunden und behoben (`c92b680`): das Web-Image baute nicht, weil das `Dockerfile` den Ordner
+`frontend/public` kopierte, den ein früheres Aufräumen geleert hatte (Git speichert keine
+leeren Ordner).
 
 1. **Server anlegen** (Hetzner Cloud Console): Ubuntu 24.04, Standort Nürnberg, Typ
    **CPX12** (1 vCPU, 2 GB RAM, 40 GB SSD; 11,49 €/Monat + 0,50 € IPv4, jeweils netto,
@@ -23,12 +27,16 @@ eingespielt; er bleibt dort ohnehin zu, bis Domain und Google-Zugang eingerichte
    beim Image-Build, Standardbefehle, auf Hetzner nicht getestet):
    `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab`
 2. **Domain**: A-Record auf die IPv4 des Servers setzen.
-   *Vorläufig, solange der Projektname nicht feststeht:* kostenlos über duckdns.org (Login
-   mit Google/GitHub, Namen wählen, Server-IP eintragen) und `DOMAIN=<name>.duckdns.org`.
-   Nicht sslip.io/nip.io: beide stehen nicht auf der Public Suffix List und teilen sich
-   das Let's-Encrypt-Limit mit allen Nutzern weltweit, das Zertifikat kann scheitern.
-   Mit der echten Domain: `DOMAIN` in `.env` ändern, `docker compose up -d` — Daten
-   bleiben, nur der Link ändert sich (den Brüdern neu geben). Ungetestet auf einem Server.
+   **Aktuell: `duraralulama.com`** (Porkbun, registriert am 2026-11-22, läuft am 2027-11-22 ab;
+   ob die automatische Verlängerung an ist, sieht nur das Konto, das sie gekauft hat). Bei
+   Porkbun steht dort ein `A`-Eintrag mit leerem Host auf die Server-IP; der voreingestellte
+   `ALIAS` auf die Porkbun-Parkseite musste vorher gelöscht werden, beides zugleich geht nicht.
+   Die Mail-Weiterleitung und die `TXT`-Einträge von Porkbun bleiben unberührt.
+   Domain wechseln: `DOMAIN` und `PUBLIC_URL` in `.env` ändern, bei Google die neue
+   Weiterleitungs-URI ergänzen, `docker compose up -d` — Daten bleiben, nur der Link ändert
+   sich (den Brüdern neu geben). Davor war es eine DuckDNS-Adresse; nicht sslip.io/nip.io
+   (beide stehen nicht auf der Public Suffix List und teilen sich das Let's-Encrypt-Limit
+   mit allen Nutzern weltweit).
 3. **Auf dem Server:**
    ```bash
    curl -fsSL https://get.docker.com | sh
@@ -110,8 +118,10 @@ Admin tut, steht mit seiner Adresse in der Tabelle `admin_log`.
 
 ### Einrichten (einmalig, ca. 15 Minuten, braucht die endgültige Domain)
 
-Google trägt die Adresse der Seite fest ein; mit der vorläufigen DuckDNS-Adresse müsste
-alles später neu gemacht werden.
+Google trägt die Adresse der Seite fest ein, deshalb kam die Domain vor dem Client.
+Erledigt am 2026-11-23 für `https://duraralulama.com/api/v1/admin/auth/callback`; die
+`localhost`-Adressen der lokalen Tests stehen als weitere URIs beim selben Client.
+Die Schritte unten sind die Anleitung für ein erneutes Einrichten.
 
 1. <https://console.cloud.google.com> → ein Projekt (das aus `docs/SETUP-GOOGLE.md` oder ein neues).
 2. **APIs & Dienste → OAuth-Zustimmungsbildschirm**: Nutzertyp *Extern*, App-Name und

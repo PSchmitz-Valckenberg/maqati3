@@ -130,15 +130,18 @@ The deduplication layers are described in [`docs/PIPELINE.md`](docs/PIPELINE.md)
 
 ## Status
 
-Pre-alpha. Nothing is public yet; the upload runs on a provisional server.
+Pre-alpha. The admin side and the upload run on one server at `duraralulama.com`; the
+public library does not exist yet, so nothing of the archive is public.
 
 | | Part | State |
 |---|---|---|
-| ✅ | Bulk upload with live duplicate check | built and running |
-| ✅ | Admin dashboard: sign in, play, register, discard | built; goes live with the final domain |
-| ✅ | Transcription on demand (Soniox) | built; waiting for an API key |
-| ✅ | Draft translations on demand (Claude Haiku) | built; waiting for an API key |
-| 🔨 | Review editor with a per-language claim and approval | [next](https://github.com/PSchmitz-Valckenberg/maqati3/milestones) |
+| ✅ | Bulk upload with live duplicate check | live |
+| ✅ | Admin dashboard: Google sign-in, play, register, discard | live (2026-11-23) |
+| ✅ | Transcription on demand (Soniox) | built, run on two short clips; no job has run on the server yet |
+| ✅ | Draft translations on demand (Claude Haiku) | built, run on two short clips |
+| ✅ | Review editor: edit rows, per-language claim and approval, who speaks, confirmed second | first version, live; no browser test of the page yet |
+| ✅ | Title, question and keywords drafted from the approved Arabic | built, a person confirms |
+| 🔨 | Backups of the server and a restore test | [#7](https://github.com/PSchmitz-Valckenberg/maqati3/issues/7), [#34](https://github.com/PSchmitz-Valckenberg/maqati3/issues/34) |
 | 🗓️ | **Phase 1:** the public library: topics, scholars, synced transcript, deep links. No AI. | planned |
 | 🗓️ | **Phase 2:** search, an MCP server, and only then an answer tool | planned |
 
