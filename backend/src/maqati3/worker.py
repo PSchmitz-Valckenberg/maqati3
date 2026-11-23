@@ -30,7 +30,17 @@ from pathlib import Path
 from typing import Any
 
 from maqati3.asr import AsrError, Transcriber
-from maqati3.db.queue import Dead, Job, LeaseLost, Retry, claim, complete, fail, heartbeat
+from maqati3.db.queue import (
+    Dead,
+    Job,
+    LeaseLost,
+    Retry,
+    claim,
+    complete,
+    fail,
+    heartbeat,
+    reap_expired,
+)
 from maqati3.db.sql import Executor
 from maqati3.dedup.fingerprint import UnreadableMedia
 from maqati3.domain import Lang
@@ -175,6 +185,10 @@ def work_once(
     kinds = [JOB_KIND]
     if translator is not None and translations is not None:
         kinds.append(TRANSLATE_JOB_KIND)
+    # First hand back what a dead worker left behind: a job whose lease has lapsed would
+    # otherwise stay "running" for ever, since nothing else ever looks at it.
+    for job_id in reap_expired(executor):
+        log.warning("job %d had lost its worker; it is queued again", job_id)
     job = claim(executor, kinds, lease_seconds)
     if job is None:
         return None
