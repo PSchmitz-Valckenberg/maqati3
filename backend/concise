@@ -1,1 +1,21 @@
-All checks passed!
+E501 Line too long (103 > 100)
+   --> tests/test_db_review.py:511:101
+    |
+509 |         assert state_of(connection, entry_id, "de")[0] == "draft_ready"
+510 |         logged = [(r[1], r[4]) for r in revisions(connection)]
+511 |         assert (f"{entry_id}:en", {"from": "approved", "to": "needs_fixes", "because": "ar"}) in logged
+    |                                                                                                     ^^^
+512 |         assert len(logged) == 2
+    |
+
+E501 Line too long (101 > 100)
+   --> tests/test_db_review.py:528:101
+    |
+527 | @requires_database
+528 | def test_integration_a_translation_cannot_be_taken_again_while_the_arabic_is_being_changed() -> None:
+    |                                                                                                     ^
+529 |     with migrated_schema() as (connection, executor):
+530 |         entry_id = drafted_entry(executor, connection)
+    |
+
+Found 2 errors.

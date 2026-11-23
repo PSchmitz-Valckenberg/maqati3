@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from maqati3.db.review import PgReview
-from maqati3.domain import Lang, SpanRole
+from maqati3.domain import Lang, ReviewState, SpanRole
 from maqati3.review import ClaimedByOther, NotInProgress, RoleNotSet, UnknownRow
 from maqati3.transcription import UnknownEntry
 from test_db_review import (
@@ -252,3 +252,26 @@ def test_integration_only_a_confirmed_scholar_row_of_an_approved_public_entry_is
 
         assert [r[0] for r in quotable] == [0]
         assert Lang.AR.value == "ar"
+
+
+@requires_database
+def test_integration_taking_the_arabic_back_takes_its_lines_out_of_the_quotable_view() -> None:
+    # The structural half of reopening: nothing in the application has to remember to hide a
+    # language that is being changed, because the view only shows approved languages.
+    with migrated_schema() as (connection, executor):
+        entry_id = working_entry(executor, connection)
+        review = PgReview(executor)
+        review.set_role(entry_id, 0, SpanRole.SCHOLAR_OWN, YUSUF)
+        review.confirm_timestamp(entry_id, 0, True, YUSUF)
+        connection.execute(
+            "UPDATE entry SET attribution = 'confirmed', visibility = 'public' WHERE id = %s",
+            (entry_id,),
+        )
+        review.move(entry_id, Lang.AR, ReviewState.AWAITING_REVIEW, YUSUF)
+        review.move(entry_id, Lang.AR, ReviewState.APPROVED, AISHA)
+        query = "SELECT idx FROM segment_citable WHERE entry_id = %s AND lang = 'ar'"
+        assert [r[0] for r in connection.execute(query, (entry_id,)).fetchall()] == [0]
+
+        review.move(entry_id, Lang.AR, ReviewState.IN_PROGRESS, AISHA)
+
+        assert connection.execute(query, (entry_id,)).fetchall() == []

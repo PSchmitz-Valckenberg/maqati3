@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from maqati3.db.admin import PgDesk
 from maqati3.db.metadata import PgMetadata
 from maqati3.metadata import (
     AlreadyDrafted,
@@ -181,3 +182,33 @@ def test_integration_an_entry_without_metadata_reads_as_none() -> None:
 def test_integration_saving_on_an_unknown_entry_is_refused() -> None:
     with migrated_schema() as (_, executor), pytest.raises(UnknownEntry):
         PgMetadata(executor).save("nobody-000001", "T", "", (), YUSUF)
+
+
+# ------------------------------------------------------------------ the dashboard's title
+
+
+def dashboard_title(executor: Any) -> str | None:
+    return next(i for i in PgDesk(executor).items() if i.entry is not None).title
+
+
+@requires_database
+def test_integration_the_dashboard_has_no_title_for_an_entry_nobody_has_described() -> None:
+    # The page then falls back to the file name. A title that is empty text must never
+    # look like a real one.
+    with migrated_schema() as (connection, executor):
+        approved_entry(executor, connection)
+
+        assert dashboard_title(executor) is None
+
+
+@requires_database
+def test_integration_the_dashboard_shows_the_drafted_title_and_then_the_corrected_one() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = approved_entry(executor, connection)
+        metadata = PgMetadata(executor)
+
+        metadata.store_draft(entry_id, DRAFT, YUSUF)
+        assert dashboard_title(executor) == DRAFT.title
+
+        metadata.save(entry_id, "A better title", "", (), YUSUF)
+        assert dashboard_title(executor) == "A better title"

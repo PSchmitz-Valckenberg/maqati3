@@ -450,3 +450,87 @@ def test_integration_an_entry_is_finished_only_when_every_language_is_approved()
 
         set_state(connection, entry_id, "de", "approved")
         assert _item(executor).all_approved is True
+
+
+# ------------------------------------------------------------------ taking an approval back
+
+
+@requires_database
+def test_integration_an_approved_language_can_be_taken_back_by_any_admin_and_is_logged() -> None:
+    # Decided 2026-11-23: approving is not the end. One role, so any admin may do it; the
+    # log says who and when, which is what makes that acceptable.
+    with migrated_schema() as (connection, executor):
+        entry_id = transcribed_entry(executor)
+        set_state(connection, entry_id, "ar", "approved", YUSUF)
+
+        new = PgReview(executor).move(entry_id, Lang.AR, ReviewState.IN_PROGRESS, AISHA)
+
+        assert new is ReviewState.IN_PROGRESS
+        assert state_of(connection, entry_id, "ar") == ("in_progress", AISHA)
+        [(entity, entity_id, action, actor, detail)] = revisions(connection)
+        assert (entity, entity_id, action, actor) == (
+            "entry_language",
+            f"{entry_id}:ar",
+            "state",
+            AISHA,
+        )
+        assert detail == {"from": "approved", "to": "in_progress"}
+
+
+@requires_database
+def test_integration_a_language_taken_back_can_be_edited_again() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = transcribed_entry(executor)
+        set_state(connection, entry_id, "ar", "approved", YUSUF)
+        review = PgReview(executor)
+        with pytest.raises(NotInProgress):
+            review.edit_text(entry_id, 0, Lang.AR, "نص جديد", YUSUF)
+
+        review.move(entry_id, Lang.AR, ReviewState.IN_PROGRESS, YUSUF)
+        review.edit_text(entry_id, 0, Lang.AR, "نص جديد", YUSUF)
+
+        assert text_of(connection, entry_id, 0, "ar") == ("نص جديد", "human")
+
+
+@requires_database
+def test_integration_taking_the_arabic_back_sends_approved_translations_back_for_checking() -> None:
+    # An English line approved against Arabic that is now being rewritten says nothing any
+    # more. The translations go back to "needs fixes" in the same transaction, one log row
+    # each, and a translation that was never approved is left alone.
+    with migrated_schema() as (connection, executor):
+        entry_id = drafted_entry(executor, connection)
+        set_state(connection, entry_id, "en", "approved", YUSUF)
+        PgTranslations(executor).store(entry_id, Lang.DE, ("Was ist das Urteil?", "Erlaubt."))
+
+        PgReview(executor).move(entry_id, Lang.AR, ReviewState.IN_PROGRESS, YUSUF)
+
+        assert state_of(connection, entry_id, "ar") == ("in_progress", YUSUF)
+        assert state_of(connection, entry_id, "en")[0] == "needs_fixes"
+        assert state_of(connection, entry_id, "de")[0] == "draft_ready"
+        logged = [(r[1], r[4]) for r in revisions(connection)]
+        assert (f"{entry_id}:en", {"from": "approved", "to": "needs_fixes", "because": "ar"}) in logged
+        assert len(logged) == 2
+
+
+@requires_database
+def test_integration_taking_a_translation_back_leaves_the_arabic_alone() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = drafted_entry(executor, connection)
+        set_state(connection, entry_id, "en", "approved", YUSUF)
+
+        PgReview(executor).move(entry_id, Lang.EN, ReviewState.IN_PROGRESS, AISHA)
+
+        assert state_of(connection, entry_id, "ar")[0] == "approved"
+        assert state_of(connection, entry_id, "en") == ("in_progress", AISHA)
+
+
+@requires_database
+def test_integration_a_translation_cannot_be_taken_again_while_the_arabic_is_being_changed() -> None:
+    with migrated_schema() as (connection, executor):
+        entry_id = drafted_entry(executor, connection)
+        set_state(connection, entry_id, "en", "approved", YUSUF)
+        review = PgReview(executor)
+        review.move(entry_id, Lang.AR, ReviewState.IN_PROGRESS, YUSUF)
+
+        with pytest.raises(ArabicNotApproved):
+            review.move(entry_id, Lang.EN, ReviewState.IN_PROGRESS, YUSUF)

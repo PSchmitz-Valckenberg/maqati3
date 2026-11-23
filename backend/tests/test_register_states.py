@@ -29,6 +29,8 @@ VALID_MOVES: frozenset[tuple[ReviewState, ReviewState]] = frozenset(
         (ReviewState.AWAITING_REVIEW, ReviewState.APPROVED),
         (ReviewState.AWAITING_REVIEW, ReviewState.NEEDS_FIXES),
         (ReviewState.NEEDS_FIXES, ReviewState.IN_PROGRESS),
+        # Decided 2026-11-23: a person may take an approved language back and change it.
+        (ReviewState.APPROVED, ReviewState.IN_PROGRESS),
     }
 )
 
@@ -55,10 +57,20 @@ def test_advance_returns_the_target_for_every_move_in_the_allowed_matrix(
 
 def test_invalid_transition_message_names_both_states() -> None:
     with pytest.raises(InvalidTransition) as excinfo:
-        advance(ReviewState.APPROVED, ReviewState.IN_PROGRESS)
+        advance(ReviewState.APPROVED, ReviewState.NEEDS_FIXES)
     message = str(excinfo.value)
     assert "approved" in message
-    assert "in_progress" in message
+    assert "needs_fixes" in message
+
+
+def test_an_approved_language_can_only_be_taken_back_to_in_progress() -> None:
+    # Not to "awaiting review" or "needs fixes": taking it back means working on it again.
+    for target in ReviewState:
+        if target is ReviewState.IN_PROGRESS:
+            assert advance(ReviewState.APPROVED, target) is target
+        else:
+            with pytest.raises(InvalidTransition):
+                advance(ReviewState.APPROVED, target)
 
 
 @pytest.mark.parametrize(
