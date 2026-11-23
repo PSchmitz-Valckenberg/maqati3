@@ -11,6 +11,7 @@ import {
   loginResult,
   loginUrl,
   scholarLabel,
+  scholarIdFor,
   slugFrom,
   type Item,
 } from './logic';
@@ -128,6 +129,35 @@ describe('slugFrom', () => {
   it('is empty when nothing usable is left, so the field is never pre-filled with junk', () => {
     expect(slugFrom('')).toBe('');
     expect(slugFrom('!!!')).toBe('');
+  });
+});
+
+describe('scholarIdFor: the id that is actually sent', () => {
+  it('is suggested from the name while the field has not been touched', () => {
+    expect(scholarIdFor('Aziz Farhan al-Anzi', '', false)).toBe('aziz-farhan-al-anzi');
+  });
+
+  it('follows the name as it is typed, until the field is edited by hand', () => {
+    expect(scholarIdFor('Aziz', 'ignored', false)).toBe('aziz');
+  });
+
+  it('is cleaned when typed by hand: the server refuses spaces and capitals, and the page used to send them as they were', () => {
+    expect(scholarIdFor('x', 'sheikh aziz farhan al anzi', true)).toBe('sheikh-aziz-farhan-al-anzi');
+    expect(scholarIdFor('x', 'Ibn  Bāz', true)).toBe('ibn-baz');
+    expect(scholarIdFor('x', ' -al-albani- ', true)).toBe('al-albani');
+  });
+
+  it('is empty when a hand-typed id leaves nothing usable, never the name behind the user\'s back', () => {
+    expect(scholarIdFor('Aziz', '', true)).toBe('');
+    expect(scholarIdFor('Aziz', '!!!', true)).toBe('');
+  });
+
+  it('always matches what the server accepts', () => {
+    const accepted = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    for (const typed of ['A B', 'x--y', '9 lives', 'Ṣāliḥ al-Fawzān', '___ok___']) {
+      const id = scholarIdFor('', typed, true);
+      expect(id === '' || accepted.test(id), typed).toBe(true);
+    }
   });
 });
 
