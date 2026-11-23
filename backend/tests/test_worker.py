@@ -258,6 +258,46 @@ def test_integration_a_missing_program_fails_the_job_visibly_and_is_tried_again(
         assert error is not None and "ffmpeg is not installed" in error
 
 
+@requires_database
+def test_integration_a_job_left_running_by_a_dead_worker_is_taken_up_again() -> None:
+    # Found on the first run on the server (2026-11-23): `reap_expired` existed and nothing
+    # called it, so a worker that died mid-job left the job "running" for ever and the
+    # dashboard said "transcribing" until someone edited the database by hand.
+    with queue_schema() as (connection, executor):
+        job_id = enqueue(connection)
+        connection.execute(
+            "UPDATE job SET state = 'running', attempts = 1, locked_by = 'dead-worker',"
+            " locked_until = now() - interval '10 minutes' WHERE id = %s",
+            (job_id,),
+        )
+        transcripts = FakeTranscripts()
+
+        outcome = run(executor, FakeTranscriber(), transcripts)
+
+        assert isinstance(outcome, Stored)
+        assert len(transcripts.stored) == 1
+        assert job_row(connection, job_id)[0] == "done"
+
+
+@requires_database
+def test_integration_a_job_whose_lease_is_still_valid_is_left_to_its_worker() -> None:
+    # The other half: reaping must never steal a job that is being worked on right now.
+    with queue_schema() as (connection, executor):
+        job_id = enqueue(connection)
+        connection.execute(
+            "UPDATE job SET state = 'running', attempts = 1, locked_by = 'busy-worker',"
+            " locked_until = now() + interval '5 minutes' WHERE id = %s",
+            (job_id,),
+        )
+        transcriber = FakeTranscriber()
+
+        outcome = run(executor, transcriber, FakeTranscripts())
+
+        assert outcome is None
+        assert transcriber.calls == []
+        assert job_row(connection, job_id)[0] == "running"
+
+
 # ------------------------------------------------------- drafting translations
 
 ENGLISH = ("What is the ruling?", "This is permitted.")
