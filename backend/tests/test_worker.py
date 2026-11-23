@@ -22,6 +22,7 @@ import pytest
 from maqati3.asr import AsrError, AsrLine, AsrTranscript
 from maqati3.db.queue import Dead, Retry
 from maqati3.dedup.fingerprint import UnreadableMedia
+from maqati3.media import ToolMissing
 from maqati3.domain import Lang
 from maqati3.transcription import AlreadyTranscribed, EmptyTranscript
 from maqati3.translate import LineCountMismatch
@@ -237,6 +238,24 @@ def test_integration_a_recording_with_no_audio_never_reaches_the_provider() -> N
         assert prepare.calls == [AUDIO]
         # Terminal: the same file will have no audio on the next four attempts either.
         assert job_row(connection, job_id)[0] == "failed"
+
+
+@requires_database
+def test_integration_a_missing_program_fails_the_job_visibly_and_is_tried_again() -> None:
+    # Before: the exception left the queue's own handling, the job sat claimed until its
+    # lease ran out, and the dashboard showed "transcribing" for ever.
+    with queue_schema() as (connection, executor):
+        job_id = enqueue(connection)
+        transcriber = FakeTranscriber()
+        prepare = FakePrepare(ToolMissing("ffmpeg is not installed"))
+
+        outcome = run(executor, transcriber, FakeTranscripts(), prepare)
+
+        assert isinstance(outcome, Retry)
+        assert transcriber.calls == []
+        state, error = job_row(connection, job_id)
+        assert state == "pending"
+        assert error is not None and "ffmpeg is not installed" in error
 
 
 # ------------------------------------------------------- drafting translations

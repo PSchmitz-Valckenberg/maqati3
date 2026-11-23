@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from maqati3.dedup.fingerprint import UnreadableMedia
-from maqati3.media import prepare_for_asr
+from maqati3.media import ToolMissing, prepare_for_asr
 
 pytestmark = pytest.mark.skipif(
     shutil.which("ffmpeg") is None, reason="integration test: needs ffmpeg on PATH"
@@ -99,3 +99,13 @@ def test_the_audio_keeps_its_length_to_the_second(tmp_path: Path, phone_video: P
         return float(out)
 
     assert abs(seconds(prepared) - seconds(phone_video)) < 1.0
+
+
+def test_a_missing_ffmpeg_is_its_own_error_and_not_a_bad_recording(tmp_path: Path) -> None:
+    # A server without the program must not look like an unusable file: the file is fine,
+    # and the job has to say what is actually wrong so it can be fixed and asked again.
+    source = tmp_path / "forward.mp4"
+    source.write_bytes(b"not looked at")
+
+    with pytest.raises(ToolMissing, match="no-such-ffmpeg"):
+        prepare_for_asr(source, tmp_path / "work", ffmpeg="no-such-ffmpeg")
