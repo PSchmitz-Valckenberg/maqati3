@@ -52,9 +52,14 @@ Allowed moves:
 
 ```
 Not started ──> Draft ready ──> In progress ──> Done – waiting review ──> Approved
-                                     ^                      │
-                                     └──── Needs fixes ◄─────┘
+                                     ^   ^                  │                  │
+                                     │   └── Needs fixes ◄──┘                  │
+                                     └──────────── taken back ◄────────────────┘
 ```
+
+Approved is not the end (decided 2026-11-23): an approved language can be taken back to
+*In progress*, by any admin, and has to be approved again. Taking back the **Arabic** sends
+every approved translation back to *Needs fixes*.
 
 ## Two hard rules
 

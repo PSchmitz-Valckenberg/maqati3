@@ -290,7 +290,15 @@ Decided 2026-10-27, replacing the Drive/Google-Doc review of the original design
    `register.states`**, a draft is made by the worker and never by a click, and **no
    translation is taken before the Arabic is approved**. Edited text becomes provenance
    `human` and its `text_norm` is cleared. The actor is always the signed-in admin, never a
-   name in the request. *Who speaks, built 2026-11-10 (#26):* every row starts `unclear`, and
+   name in the request. *Approving is not the end (decided 2026-11-23):* any admin may take an
+   approved language back (`approved → in_progress`, the only way out of `approved`); it must
+   then be handed on and approved again. Taking back the **Arabic** also sends every approved
+   translation back to `needs_fixes` in the same transaction (one log row each, `because: ar`),
+   because a translation approved against text that is being rewritten says nothing any more,
+   and the translations wait until the Arabic is approved again. Nothing needs to hide a language
+   that is being changed: `segment_citable` only shows approved languages. The dashboard lists
+   an entry under its described title (the model's draft or the person's words) and falls back
+   to the file name until then. *Who speaks, built 2026-11-10 (#26):* every row starts `unclear`, and
    the person who has taken the Arabic sets one of the five roles and ticks "the second is
    confirmed" (`citable`). Rules, each tested: only while the Arabic is in progress and by
    whoever took it; a second cannot be confirmed on an `unclear` row; **changing the role
