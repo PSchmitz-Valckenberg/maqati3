@@ -32,6 +32,14 @@ DEFAULT_TIMEOUT_S = 1800
 PREPARED_NAME = "audio.opus"
 
 
+class ToolMissing(Exception):
+    """A program the server needs is not installed.
+
+    Not `UnreadableMedia`: the recording is fine, the machine is broken. The job fails with
+    this message and is tried again, so it goes through once the server is fixed.
+    """
+
+
 def prepare_for_asr(
     source: Path,
     workdir: Path,
@@ -61,10 +69,12 @@ def prepare_for_asr(
         "-b:a", bitrate,
         str(destination),
     ]
-    # A missing binary raises FileNotFoundError and is left to propagate: a broken
-    # server must not look like an unusable recording.
     try:
         proc = subprocess.run(command, capture_output=True, timeout=timeout_s, check=False)
+    except FileNotFoundError as exc:
+        # Its own error: a broken server must not look like an unusable recording, and it
+        # must not escape as a bare exception either (the job would hang until its lease ran out).
+        raise ToolMissing(f"{ffmpeg} is not installed on this server") from exc
     except subprocess.TimeoutExpired as exc:
         raise UnreadableMedia(f"re-encoding {source.name} took longer than {timeout_s}s") from exc
     if proc.returncode != 0:
@@ -75,4 +85,4 @@ def prepare_for_asr(
     return destination
 
 
-__all__ = ["DEFAULT_BITRATE", "PREPARED_NAME", "prepare_for_asr"]
+__all__ = ["DEFAULT_BITRATE", "PREPARED_NAME", "ToolMissing", "prepare_for_asr"]

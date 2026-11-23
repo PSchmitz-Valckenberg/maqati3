@@ -34,7 +34,7 @@ from maqati3.db.queue import Dead, Job, LeaseLost, Retry, claim, complete, fail,
 from maqati3.db.sql import Executor
 from maqati3.dedup.fingerprint import UnreadableMedia
 from maqati3.domain import Lang
-from maqati3.media import prepare_for_asr
+from maqati3.media import ToolMissing, prepare_for_asr
 from maqati3.transcription import JOB_KIND, AlreadyTranscribed, EmptyTranscript, Transcripts
 from maqati3.translate import TranslationError, Translator
 from maqati3.translation import (
@@ -197,7 +197,7 @@ def work_once(
         # Terminal: max_attempts=1 spends the whole budget on this one attempt, because
         # the next one would send the same silence, or the same nothing, and be billed.
         return fail(executor, job, f"nothing to work on: {exc}", max_attempts=1)
-    except (AsrError, MediaMissing, TranslationError) as exc:
+    except (AsrError, MediaMissing, ToolMissing, TranslationError) as exc:
         # Retried with backoff. A miscounted draft is in here on purpose: unlike
         # silence, it is something the model may well get right on the next attempt,
         # and a draft costs fractions of a cent.

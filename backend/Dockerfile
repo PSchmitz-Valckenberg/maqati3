@@ -1,9 +1,12 @@
 # Build context: the repository root (migrations and reference data live outside backend/).
 FROM python:3.13-slim
 
-# fpcalc is the only external tool the upload path needs; it decodes MP4/M4A/Opus/MP3 itself.
+# Two external programs. fpcalc (libchromaprint-tools) fingerprints an upload and decodes
+# MP4/M4A/Opus/MP3 itself. ffmpeg cuts the sound out of a phone video before it goes to the
+# transcription provider (media.py); without it the worker cannot transcribe anything, which
+# only showed on the first run on the server because a developer's machine has both.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libchromaprint-tools \
+    && apt-get install -y --no-install-recommends libchromaprint-tools ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /usr/local/bin/uv
 

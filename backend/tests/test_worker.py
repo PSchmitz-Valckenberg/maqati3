@@ -22,8 +22,8 @@ import pytest
 from maqati3.asr import AsrError, AsrLine, AsrTranscript
 from maqati3.db.queue import Dead, Retry
 from maqati3.dedup.fingerprint import UnreadableMedia
-from maqati3.media import ToolMissing
 from maqati3.domain import Lang
+from maqati3.media import ToolMissing
 from maqati3.transcription import AlreadyTranscribed, EmptyTranscript
 from maqati3.translate import LineCountMismatch
 from maqati3.translation import AlreadyTranslated
